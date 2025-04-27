@@ -20,3 +20,73 @@ bert
       default  |         |   255.5 
 
 Times are in milliseconds (ms).
+
+
+C++ Benchmarks
+---------------------------------------------------------------------------------------------------------------------------
+Benchmark                                                                                 Time             CPU   Iterations
+---------------------------------------------------------------------------------------------------------------------------
+BM_AddTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_mean         107413 ns       103274 ns            5
+BM_AddTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_median       100054 ns        96700 ns            5
+BM_AddTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev        14428 ns        12450 ns            5
+BM_AddTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_cv            13.43 %         12.06 %             5
+BM_AddTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_mean         172827 ns       166946 ns            5
+BM_AddTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_median       174926 ns       168024 ns            5
+BM_AddTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev         7296 ns         7027 ns            5
+BM_AddTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_cv             4.22 %          4.21 %             5
+BM_AddUnTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_mean       294140 ns       277931 ns            5
+BM_AddUnTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_median     280900 ns       267461 ns            5
+BM_AddUnTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev      34345 ns        20893 ns            5
+BM_AddUnTiled/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_cv          11.68 %          7.52 %             5
+BM_AddUnTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_mean       437712 ns       405435 ns            5
+BM_AddUnTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_median     395702 ns       377157 ns            5
+BM_AddUnTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev      77483 ns        50286 ns            5
+BM_AddUnTiled/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_cv          17.70 %         12.40 %             5
+BM_AddRaw/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_mean           218327 ns       201905 ns            5
+BM_AddRaw/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_median         215795 ns       198554 ns            5
+BM_AddRaw/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev          10778 ns         7589 ns            5
+BM_AddRaw/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_cv               4.94 %          3.76 %             5
+BM_AddRaw/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_mean           317947 ns       292933 ns            5
+BM_AddRaw/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_median         317835 ns       294062 ns            5
+BM_AddRaw/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev          32108 ns        22031 ns            5
+BM_AddRaw/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_cv              10.10 %          7.52 %             5
+
+Python Benchmarks
+-------------------------------------------------------------------------------------------------------------------------
+Benchmark                                                                               Time             CPU   Iterations
+-------------------------------------------------------------------------------------------------------------------------
+tiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_mean         279749 ns       258012 ns            5
+tiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_median       259717 ns       246214 ns            5
+tiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev        65857 ns        44251 ns            5
+tiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_cv            23.54 %         17.15 %             5
+tiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_mean         464210 ns       414632 ns            5
+tiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_median       486356 ns       434161 ns            5
+tiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev       103131 ns        65998 ns            5
+tiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_cv            22.22 %         15.92 %             5
+untiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_mean       486611 ns       440922 ns            5
+untiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_median     443911 ns       418950 ns            5
+untiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev      98458 ns        57483 ns            5
+untiled_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_cv          20.23 %         13.04 %             5
+untiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_mean       685645 ns       614777 ns            5
+untiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_median     701486 ns       610023 ns            5
+untiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev      84620 ns        48868 ns            5
+untiled_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_cv          12.34 %          7.95 %             5
+torch_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_mean         212174 ns       190495 ns            5
+torch_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_median       201439 ns       187584 ns            5
+torch_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev        21135 ns         7836 ns            5
+torch_add/1/1/1024/512/min_time:4.000/min_warmup_time:4.000/repeats:5_cv             9.96 %          4.11 %             5
+torch_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_mean         275866 ns       261155 ns            5
+torch_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_median       262038 ns       250496 ns            5
+torch_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_stddev        28761 ns        23336 ns            5
+torch_add/1/12/1024/64/min_time:4.000/min_warmup_time:4.000/repeats:5_cv            10.43 %          8.94 %             5
+
+
+Comparison
+
+Benchmark                     C++ CPU Time (median)      Python CPU Time (median)
+1 x 1 x 1024 x 512 tiled      96700 ns                   246214 ns
+1 x 1 x 1024 x 512 untiled    267461 ns                  418950 ns
+1 x 1 x 1024 x 512 raw        198554 ns                  187584 ns
+1 x 12 x 1024 x 64 tiled      168024 ns                  434161 ns
+1 x 12 x 1024 x 64 untiled    377157 ns                  610023 ns
+1 x 12 x 1024 x 64 raw        294062 ns                  250496 ns

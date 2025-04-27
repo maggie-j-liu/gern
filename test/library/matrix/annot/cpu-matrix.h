@@ -218,12 +218,12 @@ public:
         Variable l_y("l_y");
         Variable l_z("l_z");
 
-        auto innerLoop = For(z = Expr(0), output["dims[3]"], l_z, 
+        auto innerLoop = Tileable(z = Expr(0), output["dims[3]"], l_z, 
                                 Produces::Subset(output, {w, x, y, z, l_w, l_x, l_y, l_z}),
                             Consumes::Subset(input, {w, x, y, z, l_w, l_x, l_y, l_z}));
-        auto middleLoop = For(y = Expr(0), output["dims[2]"], l_y, innerLoop);
-        auto secondMiddleLoop = For(x = Expr(0), output["dims[1]"], l_x, middleLoop);
-        auto outerLoop = For(w = Expr(0), output["dims[0]"], l_w, secondMiddleLoop);
+        auto middleLoop = Tileable(y = Expr(0), output["dims[2]"], l_y, innerLoop);
+        auto secondMiddleLoop = Tileable(x = Expr(0), output["dims[1]"], l_x, middleLoop);
+        auto outerLoop = Tileable(w = Expr(0), output["dims[0]"], l_w, secondMiddleLoop);
 
         return annotate(outerLoop);
     }
@@ -270,11 +270,11 @@ public:
         Variable row("row");
         Variable col("col");
 
-        auto innerLoop = For(z = Expr(0), output["k_dim"], l_z, 
+        auto innerLoop = Tileable(z = Expr(0), output["k_dim"], l_z, 
                                 Produces::Subset(output, {x, y, z, l_x, l_y, l_z}),
                             Consumes::Subset(input, {x, y, z, l_x, l_y, l_z}));
-        auto middleLoop = For(y = Expr(0), output["j_dim"], l_y, innerLoop);
-        auto outerLoop = For(x = Expr(0), output["i_dim"], l_x, middleLoop);
+        auto middleLoop = Tileable(y = Expr(0), output["j_dim"], l_y, innerLoop);
+        auto outerLoop = Tileable(x = Expr(0), output["i_dim"], l_x, middleLoop);
 
         return annotate(outerLoop);
     }
@@ -382,8 +382,8 @@ public:
         Variable height("height");
         Variable width("width");
 
-        auto twoDimLoop = For(y = Expr(0), output["dims[2]"], l_y,
-                                For(z = Expr(0), output["dims[3]"], l_z,
+        auto twoDimLoop = Tileable(y = Expr(0), output["dims[2]"], l_y,
+                                Tileable(z = Expr(0), output["dims[3]"], l_z,
                                     Produces::Subset(output, {w, x, y, z, l_w, l_x, l_y, l_z}),
                                     Consumes::Subsets(
                                         SubsetObjMany({
@@ -392,8 +392,8 @@ public:
                                             SubsetObj(v, {w, x, 0, z, l_w, l_x, height, l_z}),
                                         }))));
         
-        auto outerLoop = For(w = Expr(0), output["dims[0]"], l_w,
-                            For(x = Expr(0), output["dims[1]"], l_x, twoDimLoop));
+        auto outerLoop = Tileable(w = Expr(0), output["dims[0]"], l_w,
+                            Tileable(x = Expr(0), output["dims[1]"], l_x, twoDimLoop));
 
         return annotate(outerLoop);
     }
@@ -444,8 +444,8 @@ public:
         Variable height("height");
         Variable width("width");
 
-        return annotate(For(x = Expr(0), output["row"], l_x,
-                            For(y = Expr(0), output["col"], l_y,
+        return annotate(Tileable(x = Expr(0), output["row"], l_x,
+                            Tileable(y = Expr(0), output["col"], l_y,
                                 Produces::Subset(output, {x, y, l_x, l_y}),
                                 Consumes::Subsets(
                                     SubsetObjMany({
@@ -496,8 +496,8 @@ public:
         Variable row("row");
         Variable col("col");
 
-        return annotate(For(x = Expr(0), output["row"], l_x,
-                            For(y = Expr(0), output["col"], l_y,
+        return annotate(Tileable(x = Expr(0), output["row"], l_x,
+                            Tileable(y = Expr(0), output["col"], l_y,
                                 Produces::Subset(output, {x, y, l_x, l_y}),
                                 Consumes::Subset(input, {x, y, l_x, l_y}))));
     }
@@ -543,12 +543,12 @@ public:
         Variable l_y("l_y");
         Variable l_z("l_z");
 
-        auto innerLoop = For(z = Expr(0), output["dims[3]"], l_z, 
+        auto innerLoop = Tileable(z = Expr(0), output["dims[3]"], l_z, 
                                 Produces::Subset(output, {w, x, y, z, l_w, l_x, l_y, l_z}),
                             Consumes::Subset(input, {w, x, y, z, l_w, l_x, l_y, l_z}));
-        auto middleLoop = For(y = Expr(0), output["dims[2]"], l_y, innerLoop);
-        auto secondMiddleLoop = For(x = Expr(0), output["dims[1]"], l_x, middleLoop);
-        auto outerLoop = For(w = Expr(0), output["dims[0]"], l_w, secondMiddleLoop);
+        auto middleLoop = Tileable(y = Expr(0), output["dims[2]"], l_y, innerLoop);
+        auto secondMiddleLoop = Tileable(x = Expr(0), output["dims[1]"], l_x, middleLoop);
+        auto outerLoop = Tileable(w = Expr(0), output["dims[0]"], l_w, secondMiddleLoop);
 
         return annotate(outerLoop);
     }
@@ -593,13 +593,13 @@ public:
         Variable l_y("l_y");
         Variable l_z("l_z");
 
-        auto innerLoop = For(y = Expr(0), output["dims[2]"], l_y,
-                            For(z = Expr(0), output["dims[3]"], l_z,
+        auto innerLoop = Tileable(y = Expr(0), output["dims[2]"], l_y,
+                            Tileable(z = Expr(0), output["dims[3]"], l_z,
                                 Produces::Subset(output, {w, x, y, z, l_w, l_x, l_y, l_z}),
                                 Consumes::Subset(input, {w, x, y, z, l_w, l_x, l_y, l_z})));
 
-        auto outerLoop = For(w = Expr(0), output["dims[0]"], l_w, 
-                            For(x = Expr(0), output["dims[1]"], l_x, innerLoop));
+        auto outerLoop = Tileable(w = Expr(0), output["dims[0]"], l_w, 
+                            Tileable(x = Expr(0), output["dims[1]"], l_x, innerLoop));
         return annotate(outerLoop);
     }
 
@@ -638,8 +638,8 @@ public:
         Variable l_x("l_x");
         Variable l_y("l_y");
 
-        return annotate(For(x = Expr(0), output["row"], l_x,
-                            For(y = Expr(0), output["col"], l_y,
+        return annotate(Tileable(x = Expr(0), output["row"], l_x,
+                            Tileable(y = Expr(0), output["col"], l_y,
                                 Produces::Subset(output, {x, y, l_x, l_y}),
                                 Consumes::Subset(input, {x, y, l_x, l_y}))));
     }
@@ -714,12 +714,12 @@ public:
             }
         }
 
-        auto innerLoop = For(y = Expr(0), output["dims[2]"], l_y,
-                            For(z = Expr(0), output["dims[3]"], l_z,
+        auto innerLoop = Tileable(y = Expr(0), output["dims[2]"], l_y,
+                            Tileable(z = Expr(0), output["dims[3]"], l_z,
                                 Produces::Subset(output, produceVars),
                                 Consumes::Subset(input, consumeVars)));
-        auto outerLoop = For(w = Expr(0), output["dims[0]"], l_w,
-                            For(x = Expr(0), output["dims[1]"], l_x, innerLoop));
+        auto outerLoop = Tileable(w = Expr(0), output["dims[0]"], l_w,
+                            Tileable(x = Expr(0), output["dims[1]"], l_x, innerLoop));
 
         return annotate(outerLoop);
     }
@@ -768,8 +768,8 @@ public:
         Variable row("row");
         Variable col("col");
 
-        return annotate(For(x = Expr(0), output["row"], l_x,
-                            For(y = Expr(0), output["col"], l_y,
+        return annotate(Tileable(x = Expr(0), output["row"], l_x,
+                            Tileable(y = Expr(0), output["col"], l_y,
                                 Produces::Subset(output, {x, y, l_x, l_y}),
                                 Consumes::Subset(input, {y, x, l_y, l_x}))));
     }
@@ -820,8 +820,8 @@ public:
 
         Variable shared_len("shared_len");
 
-        auto innerLoop = For(y = Expr(0), output["dims[2]"], l_y,
-                            For(z = Expr(0), output["dims[3]"], l_z,
+        auto innerLoop = Tileable(y = Expr(0), output["dims[2]"], l_y,
+                            Tileable(z = Expr(0), output["dims[3]"], l_z,
                                 Produces::Subset(output, {w, x, y, z, l_w, l_x, l_y, l_z}),
                                 Consumes::Subsets(
                                     SubsetObjMany({
@@ -829,8 +829,8 @@ public:
                                         SubsetObj(b, {w, x, 0, z, l_w, l_x, shared_len, l_z})
                                     }))));
         
-        auto outerLoop = For(w = Expr(0), output["dims[0]"], l_w, 
-                            For(x = Expr(0), output["dims[1]"], l_x, innerLoop));
+        auto outerLoop = Tileable(w = Expr(0), output["dims[0]"], l_w, 
+                            Tileable(x = Expr(0), output["dims[1]"], l_x, innerLoop));
 
         return annotate(outerLoop);
     }
@@ -878,8 +878,8 @@ public:
 
         Variable shared_len("shared_len");
 
-        return annotate(For(x = Expr(0), output["row"], l_x,
-                            For(y = Expr(0), output["col"], l_y,
+        return annotate(Tileable(x = Expr(0), output["row"], l_x,
+                            Tileable(y = Expr(0), output["col"], l_y,
                                 Produces::Subset(output, {x, y, l_x, l_y}),
                                 Consumes::Subsets(
                                     SubsetObjMany({

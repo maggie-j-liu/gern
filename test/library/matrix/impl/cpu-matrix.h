@@ -386,8 +386,8 @@ inline void add(MatrixCPU3Dim a, MatrixCPU3Dim b) {
     }
 }
 
-inline void add(MatrixCPU4Dim a, float n, MatrixCPU4Dim b) {
-	b.tensor.copy_(a.tensor + n);
+inline void add(MatrixCPU4Dim& a, float n, MatrixCPU4Dim& b) {
+	torch::add_out(b.tensor, a.tensor, n);
 }
 
 inline void divn(MatrixCPU a, float n, MatrixCPU b) {

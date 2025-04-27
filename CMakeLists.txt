@@ -121,12 +121,14 @@ pybind11_add_module(gern_py
     src/compose/compose.cpp
     src/compose/composable.cpp
     src/compose/composable_visitor.cpp
+    src/codegen/concretize.cpp
     src/codegen/codegen.cpp
     src/codegen/codegen_ir.cpp
     src/codegen/codegen_printer.cpp
     src/codegen/lower.cpp
     src/codegen/lower_visitor.cpp
     src/codegen/runner.cpp
+    src/codegen/finalizer.cpp
     # src/resolve_constraints/resolve_constraints.cpp
     src/utils/name_generator.cpp)
 set_target_properties(gern_py PROPERTIES LIBRARY_OUTPUT_DIRECTORY "../../python")

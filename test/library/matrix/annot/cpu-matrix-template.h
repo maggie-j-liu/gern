@@ -151,8 +151,8 @@ public:
         Variable row("row");
         Variable col("col");
 
-        return annotate(For(x = Expr(0), output["row"], l_x,
-                            For(y = Expr(0), output["col"], l_y,
+        return annotate(Tileable(x = Expr(0), output["row"], l_x,
+                            Tileable(y = Expr(0), output["col"], l_y,
                                 Produces::Subset(output, {x, y, l_x, l_y}),
                                 Consumes::Subset(input, {x, y, l_x, l_y}))));
     }
@@ -201,8 +201,8 @@ protected:
 //         Variable row("row");
 //         Variable col("col");
 
-//         return annotate(For(x = Expr(0), output["row"], l_x,
-//                             For(y = Expr(0), output["col"], l_y,
+//         return annotate(Tileable(x = Expr(0), output["row"], l_x,
+//                             Tileable(y = Expr(0), output["col"], l_y,
 //                                 Produces::Subset(output, {x, y, l_x, l_y}),
 //                                 Consumes::Subset(input, {x, y, l_x, l_y}))));
 //     }
@@ -243,8 +243,8 @@ protected:
 //         Variable l_x("l_x");
 // 		Variable l_y("l_y");
 
-//         return annotate(For(x = Expr(0), output["row"], l_x,
-// 							For(y = Expr(0), output["col"], l_y,
+//         return annotate(Tileable(x = Expr(0), output["row"], l_x,
+// 							Tileable(y = Expr(0), output["col"], l_y,
 // 								Produces::Subset(output, {x, y, l_x, l_y}),
 // 								Consumes::Subset(input, {x, y, l_x, l_y}))));
 //     }
@@ -288,8 +288,8 @@ protected:
 //         Variable row("row");
 //         Variable col("col");
 
-//         return annotate(For(x = Expr(0), output["row"], l_x,
-//                             For(y = Expr(0), output["col"], l_y,
+//         return annotate(Tileable(x = Expr(0), output["row"], l_x,
+//                             Tileable(y = Expr(0), output["col"], l_y,
 //                                 Produces::Subset(output, {x, y, l_x, l_y}),
 //                                 Consumes::Subset(input, {y, x, l_y, l_x}))));
 //     }
@@ -336,8 +336,8 @@ protected:
 
 // 		Variable shared_len("shared_len");
 
-//         return annotate(For(x = Expr(0), output["row"], l_x,
-//                             For(y = Expr(0), output["col"], l_y,
+//         return annotate(Tileable(x = Expr(0), output["row"], l_x,
+//                             Tileable(y = Expr(0), output["col"], l_y,
 //                                 Produces::Subset(output, {x, y, l_x, l_y}),
 //                                 Consumes::Subsets(
 // 									SubsetObjMany({
@@ -384,7 +384,7 @@ protected:
 //         Variable row("row");
 //         Variable col("col");
 
-//         return annotate(For(x = Expr(0), output["size"], l_x,
+//         return annotate(Tileable(x = Expr(0), output["size"], l_x,
 //                             Produces::Subset(output, {x, l_x}),
 //                             Consumes::Subset(input, {x, 0, l_x, col})));
 //     }
@@ -454,8 +454,8 @@ protected:
 //         Variable row("row");
 //         Variable col("col");
 
-//         return annotate(For(x = Expr(0), output["row"], l_x,
-//                             For(y = Expr(0), output["row"], l_y,
+//         return annotate(Tileable(x = Expr(0), output["row"], l_x,
+//                             Tileable(y = Expr(0), output["row"], l_y,
 //                                 Produces::Subset(output, {x, y, l_x, l_y}),
 //                                 Consumes::Subsets(
 //                                     SubsetObjMany({
@@ -515,8 +515,8 @@ protected:
 //         Variable tj("tj", Datatype::Int64);
 //         Variable tk("tk", Datatype::Int64);
 
-//         return annotate(For(i = Expr(0), ADTMember(C, "row", false), ti,
-//                             For(j = Expr(0), ADTMember(C, "col", false), tj,
+//         return annotate(Tileable(i = Expr(0), ADTMember(C, "row", false), ti,
+//                             Tileable(j = Expr(0), ADTMember(C, "col", false), tj,
 //                                 Produces::Subset(C, {i, j, ti, tj}),
 //                                 Consumes::Subsets(
 //                                     Reduce(k = Expr(0), ADTMember(A, "col", false), tk,

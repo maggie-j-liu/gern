@@ -1,1 +1,2 @@
 *.so
+torch_compile_debug/*
