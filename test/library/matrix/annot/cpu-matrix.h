@@ -194,6 +194,55 @@ private:
     Variable l_y{"l_y"};
 };
 
+class MatrixAddCPU4D : public AbstractFunction {
+public:
+    MatrixAddCPU4D()
+        : input(new const MatrixCPU4Dim("input")),
+            output(new const MatrixCPU4Dim("output")) {
+    }
+    std::string getName() {
+        return "gern::impl::add";
+    }
+
+    Annotation getAnnotation() override {
+        Variable w("w");
+        Variable x("x");
+        Variable y("y");
+        Variable z("z");
+        Variable l_w("l_w");
+        Variable l_x("l_x");
+        Variable l_y("l_y");
+        Variable l_z("l_z");
+
+        auto innerLoop = For(z = Expr(0), output["dims[3]"], l_z, 
+                                Produces::Subset(output, {w, x, y, z, l_w, l_x, l_y, l_z}),
+                            Consumes::Subset(input, {w, x, y, z, l_w, l_x, l_y, l_z}));
+        auto middleLoop = For(y = Expr(0), output["dims[2]"], l_y, innerLoop);
+        auto secondMiddleLoop = For(x = Expr(0), output["dims[1]"], l_x, middleLoop);
+        auto outerLoop = For(w = Expr(0), output["dims[0]"], l_w, secondMiddleLoop);
+
+        return annotate(outerLoop);
+    }
+
+    std::vector<std::string> getHeader() override {
+        return {
+            "cpu-matrix.h",
+        };
+    }
+
+    virtual FunctionSignature getFunction() override {
+        FunctionSignature f;
+        f.name = "gern::impl::add";
+        f.args = {Parameter(input), Parameter(output)};
+        return f;
+    }
+
+protected:
+    AbstractDataTypePtr input;
+    AbstractDataTypePtr output;
+    Variable end{"end"};
+};
+
 class MatrixAddCPU3D : public AbstractFunction {
 public:
     MatrixAddCPU3D()

@@ -372,6 +372,10 @@ inline void add(MatrixCPU3Dim a, MatrixCPU3Dim b) {
     }
 }
 
+inline void add(MatrixCPU4Dim a, MatrixCPU4Dim b) {
+	b.tensor.copy_(a.tensor + 1);
+}
+
 inline void divn(MatrixCPU a, float n, MatrixCPU b) {
     float *a_data;
     float *b_data;

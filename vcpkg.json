@@ -3,15 +3,11 @@
   "version": "0.1.0",
   "description": "",
   "license": "MIT",
-  "$dependencies": [
-    "ginac"
-  ],
+  "$dependencies": ["ginac"],
   "features": {
     "dev": {
       "description": "Build settings intended for developers",
-      "dependencies": [
-        "gtest"
-      ]
+      "dependencies": ["gtest", "benchmark"]
     }
   }
 }

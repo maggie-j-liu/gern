@@ -131,6 +131,7 @@ target_compile_features(gern_py PUBLIC cxx_std_20)
 option(Gern_BUILD_TESTING "Build Gern's test suite" "${BUILD_TESTING}")
 if (Gern_BUILD_TESTING)
     add_subdirectory(test)
+    add_subdirectory(benchmark)
 endif ()
 
 if (Gern_CUDA_ARCH)
