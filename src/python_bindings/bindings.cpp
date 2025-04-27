@@ -154,6 +154,9 @@ PYBIND11_MODULE(gern_py, m) {
 
 	py::class_<annot::MatrixTranspose4D, AbstractFunction>(m, "MatrixTranspose4D")
 		.def(py::init<int64_t, int64_t>());
+	
+	py::class_<annot::MatrixAddCPU4D, AbstractFunction>(m, "MatrixAddCPU4D")
+		.def(py::init<>());
 
 	// m.def("MatrixAddCPU", [](AbstractDataTypePtr in, AbstractDataTypePtr out, const std::map<std::string, Variable> &replacements = {}){
 	// 	annot::MatrixAddCPU add;

@@ -176,7 +176,8 @@ def gen(M, torch_to_gern, *args, tile_rows=512, debug=False):
 
                     l_w_val = Int.init(out_size[0])
                     l_x_val = Int.init(out_size[1])
-                    l_y_val = Int.init(out_size[2])
+                    # l_y_val = Int.init(out_size[2])
+                    l_y_val = Int.init(tile_rows)
                     l_z_val = Int.init(out_size[3])
 
                     filtered_variables.append((l_w, l_w_val))

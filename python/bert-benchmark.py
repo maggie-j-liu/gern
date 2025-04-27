@@ -84,6 +84,8 @@ for seq_length, row_tilings in zip(seq_lengths, row_tilings):
         sub_label=f"gern 2d"
     )
     results.append(optimized_2d.blocked_autorange(min_run_time=2))
+    compare = benchmark.Compare(results)
+    compare.print()
 
     torch.compiler.reset()
     gern_model_4d_only_attention = gen4d(model, torch_to_gern_4d_only_attention)
@@ -97,6 +99,8 @@ for seq_length, row_tilings in zip(seq_lengths, row_tilings):
         sub_label=f"gern 4d only attention"
     )
     results.append(optimized_4d.blocked_autorange(min_run_time=2))
+    compare = benchmark.Compare(results)
+    compare.print()
 
     torch.compiler.reset()
     gern_model_4d = gen4d(model, torch_to_gern_4d)
@@ -110,6 +114,8 @@ for seq_length, row_tilings in zip(seq_lengths, row_tilings):
         sub_label=f"gern 4d attention and transpose"
     )
     results.append(optimized_4d_full.blocked_autorange(min_run_time=2))
+    compare = benchmark.Compare(results)
+    compare.print()
 
     unoptimized = benchmark.Timer(
         setup='model(input_ids)',
@@ -120,6 +126,8 @@ for seq_length, row_tilings in zip(seq_lengths, row_tilings):
         sub_label=f"default"
     )
     results.append(unoptimized.blocked_autorange(min_run_time=2))
+    compare = benchmark.Compare(results)
+    compare.print()
 
     torch.compiler.reset()
     default_tc_m = torch.compile(model)
@@ -133,6 +141,8 @@ for seq_length, row_tilings in zip(seq_lengths, row_tilings):
         sub_label=f"default torch compile"
     )
     results.append(default_compiled.blocked_autorange(min_run_time=2))
+    compare = benchmark.Compare(results)
+    compare.print()
 
 compare = benchmark.Compare(results)
 compare.print()

@@ -233,13 +233,14 @@ public:
     virtual FunctionSignature getFunction() override {
         FunctionSignature f;
         f.name = "gern::impl::add";
-        f.args = {Parameter(input), Parameter(output)};
+        f.args = {Parameter(input), Parameter(n), Parameter(output)};
         return f;
     }
 
 protected:
     AbstractDataTypePtr input;
     AbstractDataTypePtr output;
+	Variable n{"n", Datatype::Float32};
     Variable end{"end"};
 };
 
