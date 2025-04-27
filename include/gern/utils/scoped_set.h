@@ -24,6 +24,16 @@ public:
         scopes.push_front(std::set<Key>());
     }
 
+    std::set<Key> pop() {
+        auto scope = scopes.front();
+        scopes.pop_front();
+        return scope;
+    }
+
+    std::set<Key> front() {
+        return scopes.front();
+    }
+
     /// Remove a level of scoping.
     void unscope() {
         scopes.pop_front();

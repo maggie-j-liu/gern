@@ -8,8 +8,10 @@
 namespace gern {
 
 GlobalNode::GlobalNode(Composable program,
-                       std::map<Grid::Dim, Variable> launch_args)
-    : program(program), launch_args(launch_args) {
+                       std::map<Grid::Dim, Variable> launch_args,
+                       Variable smem_size,
+                       grid::SharedMemoryManager smem_manager)
+    : program(program), launch_args(launch_args), smem_size(smem_size), smem_manager(smem_manager) {
 
     auto legal_dims = getDims(program.getAnnotation().getOccupiedUnits());
     for (const auto &arg : launch_args) {
@@ -30,8 +32,10 @@ void GlobalNode::accept(ComposableVisitorStrict *v) const {
 
 // Wrap a function in a global interface, mostly for a nicety.
 Composable Global(Composable program,
-                  std::map<Grid::Dim, Variable> launch_args) {
-    return new const GlobalNode(program, launch_args);
+                  std::map<Grid::Dim, Variable> launch_args,
+                  Variable smem_size,
+                  grid::SharedMemoryManager smem_manager) {
+    return new const GlobalNode(program, launch_args, smem_size, smem_manager);
 }
 
 Computation::Computation(std::vector<Composable> composed)
@@ -129,7 +133,6 @@ void Computation::init_annotation() {
     Consumes consumes = mimicConsumes(last_pattern, input_subsets);
     Pattern p = mimicComputes(last_pattern, Computes(produces, consumes));
     _annotation = Annotation(p, occupied, constraints);
-    // _annotation = refreshVariables(Annotation(p, occupied, constraints));
 }
 
 void TiledComputation::accept(ComposableVisitorStrict *v) const {
@@ -256,6 +259,77 @@ Composable TileDummy::operator()(Composable c) {
     }
 
     return new const TiledComputation(to_tile, v, nested, unit, reduce);
+}
+
+StageNode::StageNode(AbstractDataTypePtr adt,
+                     FunctionSignature query_f,
+                     FunctionSignature insert_f,
+                     Composable body,
+                     bool insert)
+    : adt(adt), query_f(query_f), insert_f(insert_f), body(body), insert(insert) {
+    init_annotation();
+}
+
+void StageNode::init_annotation() {
+    _annotation = refreshVariables(body.getAnnotation(), old_to_new);
+    staged_subset = _annotation.getPattern().getCorrespondingSubset(adt);
+}
+
+Annotation StageNode::getAnnotation() const {
+    return _annotation;
+}
+
+void StageNode::accept(ComposableVisitorStrict *v) const {
+    v->visit(this);
+}
+
+Composable Stage(AbstractDataTypePtr adt,
+                 FunctionSignature query_f,
+                 FunctionSignature insert_f,
+                 Composable body,
+                 bool insert) {
+
+    if (isa<ComputeFunctionCall>(body.ptr)) {
+        body = new const Computation({body});
+    }
+
+    auto annotation = body.getAnnotation();
+    // get all the adts in scope.
+    auto adts = annotation.getPattern().getAllADTs();
+    // Only stage if the adt is in scope.
+    for (const auto &in_scope : adts) {
+        if (in_scope.getDS() == adt) {
+            return new const StageNode(adt, query_f, insert_f, body, insert);
+        }
+    }
+
+    // Cannot stage at this scope.
+    throw error::UserError("Stage must have " + adt.getName() + " as an input or output of the body in scope.");
+}
+
+Composable Stage(AbstractDataTypePtr adt,
+                 FunctionSignature query_f,
+                 FunctionSignature insert_f,
+                 Composable body) {
+    return Stage(adt, query_f, insert_f, body, true);
+}
+
+Composable Stage(AbstractDataTypePtr adt,
+                 FunctionSignature query_f,
+                 Composable body) {
+    return Stage(adt,
+                 query_f,
+                 adt.getInsertFunction(),  // a placeholder
+                 body,
+                 false);  // No insert
+}
+
+Composable Stage(AbstractDataTypePtr adt, Composable body) {
+    return Stage(adt,
+                 adt.getQueryFunction(),
+                 adt.getInsertFunction(),
+                 body,
+                 adt.insertQuery());
 }
 
 }  // namespace gern

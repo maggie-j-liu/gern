@@ -2,7 +2,7 @@
 
 #include "annotations/argument.h"
 #include "annotations/data_dependency_language.h"
-#include "compose/composable.h"
+#include "compose/composable_node.h"
 #include "utils/uncopyable.h"
 #include <vector>
 
@@ -28,11 +28,12 @@ struct LaunchArguments {
 struct FunctionCall {
     std::string name;
     std::vector<Argument> args;
-    std::vector<Expr> template_args;
+    std::vector<Argument> template_args;
     Parameter output = Parameter();
     LaunchArguments grid;
     LaunchArguments block;
     Access access;
+    Expr smem_size = Expr();
 
     /**
      * @brief Replace the data-structures in this function call.
@@ -41,6 +42,16 @@ struct FunctionCall {
      * @return * Function
      */
     FunctionCall replaceAllDS(std::map<AbstractDataTypePtr, AbstractDataTypePtr> replacement) const;
+    std::vector<Argument> getAllArguments() const;
+};
+
+bool isSameFunctionCall(const FunctionCall &a, const FunctionCall &b);
+
+struct MethodCall {
+    // Data structure to call the method on.
+    AbstractDataTypePtr data;
+    // The function call to call.
+    FunctionCall call;
 };
 
 struct LaunchParameters {
@@ -68,11 +79,14 @@ struct FunctionSignature {
 
     Access access = HOST;
     bool device = false;
+    Variable smem_size = Variable();
+
     FunctionCall constructCall() const;
 };
 
 std::ostream &operator<<(std::ostream &os, const FunctionSignature &f);
 std::ostream &operator<<(std::ostream &os, const FunctionCall &f);
+std::ostream &operator<<(std::ostream &os, const MethodCall &m);
 
 class ComputeFunctionCall : public ComposableNode {
 public:

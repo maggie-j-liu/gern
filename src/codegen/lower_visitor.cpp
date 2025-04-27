@@ -22,29 +22,24 @@ static void vector_printer(std::ostream &os, std::vector<T> v) {
 
 void LowerPrinter::visit(const AllocateNode *op) {
     util::printIdent(os, ident);
-    os << "Allocate " << op->f.output << " with ";
+    os << "Allocate " << op->f << " with ";
     vector_printer(os, op->f.args);
 }
 void LowerPrinter::visit(const FreeNode *op) {
     util::printIdent(os, ident);
-    os << "Free " << op->data;
+    os << "Free " << op->call;
 }
 void LowerPrinter::visit(const InsertNode *op) {
     util::printIdent(os, ident);
-    os << op->f;
+    os << op->call.call;
 }
 void LowerPrinter::visit(const QueryNode *op) {
     util::printIdent(os, ident);
-    os << "Query " << op->f.output
-       << " from " << op->parent
-       << " with ";
-    vector_printer(os, op->f.args);
+    os << "Query " << op->call.call;
 }
 void LowerPrinter::visit(const ComputeNode *op) {
     util::printIdent(os, ident);
-    os << "Compute " << op->f.name
-       << " by passing in ";
-    vector_printer(os, op->f.args);
+    os << "Compute " << op->f;
 }
 
 void LowerPrinter::visit(const IntervalNode *op) {
@@ -74,15 +69,17 @@ void LowerPrinter::visit(const AssertNode *op) {
        << op->constraint;
 }
 
-void LowerPrinter::visit(const FunctionBoundary *node) {
-    util::printIdent(os, ident);
-    os << "Function {" << "\n";
-    ident++;
-    this->visit(node->nodes);
-    ident--;
-    util::printIdent(os, ident);
-    os << "}" << "\n";
-}
+// void LowerPrinter::visit(const FunctionBoundary *node) {
+//     util::printIdent(os, ident);
+//     os << "Function {"
+//        << "\n";
+//     ident++;
+//     this->visit(node->nodes);
+//     ident--;
+//     util::printIdent(os, ident);
+//     os << "}"
+//        << "\n";
+// }
 
 void LowerPrinter::visit(const BlockNode *node) {
     for (const auto &ir : node->ir_nodes) {
@@ -95,6 +92,16 @@ void LowerPrinter::visit(const BlockNode *node) {
 void LowerPrinter::visit(const GridDeclNode *node) {
     util::printIdent(os, ident);
     os << node->dim << " = " << node->v;
+}
+
+void LowerPrinter::visit(const SharedMemoryDeclNode *node) {
+    util::printIdent(os, ident);
+    os << "shared mem = " << node->size;
+}
+
+void LowerPrinter::visit(const OpaqueCall *node) {
+    util::printIdent(os, ident);
+    os << "Opaque call " << node->f;
 }
 
 }  // namespace gern

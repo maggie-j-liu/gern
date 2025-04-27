@@ -266,11 +266,17 @@ public:
     }
 
     MatrixCPU(int64_t row, int64_t col, int64_t lda)
-        : MatrixCPU((float *)malloc(sizeof(float) * row * col), row, col, lda) {
+        : MatrixCPU((float *)malloc(sizeof(float) * row * lda), row, col, lda) {
     }
 
     static MatrixCPU allocate(int64_t, int64_t, int64_t l_x, int64_t l_y) {
         return MatrixCPU(l_x, l_y, l_y);
+    }
+
+    static MatrixCPU allocate_zero(int64_t, int64_t, int64_t l_x, int64_t l_y) {
+        MatrixCPU m(l_x, l_y, l_y);
+        m.vvals(0.0f);
+        return m;
     }
 
     MatrixCPU query(int64_t x, int64_t y, int64_t l_x, int64_t l_y) {
@@ -323,6 +329,14 @@ public:
                 data_tmp[j] = i * col + j;
             }
         }
+    }
+
+    float &operator()(int64_t i, int64_t j) const {
+        return data[i * lda + j];
+    }
+
+    float operator()(int64_t i, int64_t j) {
+        return data[i * lda + j];
     }
 
     float *data;

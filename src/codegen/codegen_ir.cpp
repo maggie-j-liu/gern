@@ -141,6 +141,7 @@ DEFINE_BINARY_OPERATOR(+, Add)
 DEFINE_BINARY_OPERATOR(-, Sub)
 DEFINE_BINARY_OPERATOR(*, Mul)
 DEFINE_BINARY_OPERATOR(/, Div)
+DEFINE_BINARY_OPERATOR(%, Mod)
 DEFINE_BINARY_OPERATOR(==, Eq)
 DEFINE_BINARY_OPERATOR(!=, Neq)
 DEFINE_BINARY_OPERATOR(<=, Lte)
@@ -293,6 +294,11 @@ void CGStmtNode<Block>::accept(CGVisitorStrict *v) const {
 template<>
 void CGStmtNode<Scope>::accept(CGVisitorStrict *v) const {
     v->visit((const Scope *)this);
+}
+
+template<>
+void CGExprNode<SpecializedFunction>::accept(CGVisitorStrict *v) const {
+    v->visit((const SpecializedFunction *)this);
 }
 
 // template <>

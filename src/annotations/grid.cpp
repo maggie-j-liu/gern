@@ -17,7 +17,15 @@ std::ostream &operator<<(std::ostream &os, const Grid::Unit &p) {
     case Grid::Unit::BLOCK_Z:
         os << "BLOCK_Z";
         return os;
-
+    case Grid::Unit::WARP_X:
+        os << "WARP_X";
+        return os;
+    case Grid::Unit::WARP_Y:
+        os << "WARP_Y";
+        return os;
+    case Grid::Unit::WARP_Z:
+        os << "WARP_X";
+        return os;
     case Grid::Unit::THREAD_X:
         os << "THREAD_X";
         return os;
@@ -26,6 +34,15 @@ std::ostream &operator<<(std::ostream &os, const Grid::Unit &p) {
         return os;
     case Grid::Unit::THREAD_Z:
         os << "THREAD_Z";
+        return os;
+    case Grid::Unit::THREAD_X_IN_WRAPS:
+        os << "THREAD_X_IN_WRAPS";
+        return os;
+    case Grid::Unit::THREAD_Y_IN_WRAPS:
+        os << "THREAD_Y_IN_WRAPS";
+        return os;
+    case Grid::Unit::THREAD_Z_IN_WRAPS:
+        os << "THREAD_Z_IN_WRAPS";
         return os;
     case Grid::Unit::SCALAR_UNIT:
         os << "SCALAR_UNIT";
@@ -107,11 +124,6 @@ bool legalToDistribute(const std::set<Grid::Unit> &units, const Grid::Unit &dist
         return false;
     }
 
-    // Cannot distribute again.
-    if (units.contains(distribute_unit)) {
-        return false;
-    }
-
     if (getLevel(units) > getLevel(distribute_unit)) {
         return false;
     }
@@ -126,6 +138,14 @@ Grid::Level getLevel(const Grid::Unit &unit) {
     case Grid::Unit::THREAD_Y:
     case Grid::Unit::THREAD_Z:
         return Grid::Level::THREADS;
+    case Grid::Unit::THREAD_X_IN_WRAPS:
+    case Grid::Unit::THREAD_Y_IN_WRAPS:
+    case Grid::Unit::THREAD_Z_IN_WRAPS:
+        return Grid::Level::THREADS_WARPS;
+    case Grid::Unit::WARP_X:
+    case Grid::Unit::WARP_Y:
+    case Grid::Unit::WARP_Z:
+        return Grid::Level::WARPS;
     case Grid::Unit::BLOCK_X:
     case Grid::Unit::BLOCK_Y:
     case Grid::Unit::BLOCK_Z:
@@ -148,6 +168,10 @@ Grid::Level getLevel(const Grid::Dim &dim) {
     case Grid::Dim::GRID_DIM_Y:
     case Grid::Dim::GRID_DIM_Z:
         return Grid::Level::BLOCK;
+    case Grid::Dim::WARP_DIM_X:
+    case Grid::Dim::WARP_DIM_Y:
+    case Grid::Dim::WARP_DIM_Z:
+        return Grid::Level::THREADS_WARPS;
     default:
         return Grid::Level::NULL_LEVEL;
     }
@@ -179,6 +203,18 @@ Grid::Dim getDim(const Grid::Unit &unit) {
     case Grid::Unit::THREAD_Y:
         return Grid::Dim::BLOCK_DIM_Y;
     case Grid::Unit::THREAD_Z:
+        return Grid::Dim::BLOCK_DIM_Z;
+    case Grid::Unit::THREAD_X_IN_WRAPS:
+        return Grid::Dim::WARP_DIM_X;
+    case Grid::Unit::THREAD_Y_IN_WRAPS:
+        return Grid::Dim::WARP_DIM_Y;
+    case Grid::Unit::THREAD_Z_IN_WRAPS:
+        return Grid::Dim::WARP_DIM_Z;
+    case Grid::Unit::WARP_X:
+        return Grid::Dim::BLOCK_DIM_X;
+    case Grid::Unit::WARP_Y:
+        return Grid::Dim::BLOCK_DIM_Y;
+    case Grid::Unit::WARP_Z:
         return Grid::Dim::BLOCK_DIM_Z;
     case Grid::Unit::BLOCK_X:
         return Grid::Dim::GRID_DIM_X;

@@ -65,9 +65,9 @@ public:
     Annotation getAnnotation() override {
         Variable x("x");
 
-        return (For(x = Expr(0), output["size"], step,
-                    Produces::Subset(output, {x, step}),
-                    Consumes::Subset(input, {x, step}))
+        return (Tileable(x = Expr(0), output["size"], step,
+                         Produces::Subset(output, {x, step}),
+                         Consumes::Subset(input, {x, step}))
                     .occupies({Grid::Unit::SCALAR_UNIT}));
     }
 
@@ -93,11 +93,12 @@ public:
         Variable end("end");
         Variable extra("extra");
 
-        return annotate(For(x = Expr(0), output["size"], step,
-                            Produces::Subset(output, {x, step}),
-                            Consumes::Subsets(
-                                Reduce(r = Expr(0), output["size"], end,
-                                       {input, {r, 1}}))));
+        return (Tileable(x = Expr(0), output["size"], step,
+                         Produces::Subset(output, {x, step}),
+                         Consumes::Subsets(
+                             Reducible(r = Expr(0), k, end,
+                                       {input, {r, k}}))))
+            .occupies({Grid::Unit::SCALAR_UNIT});
     }
 
     std::vector<std::string> getHeader() override {
@@ -109,14 +110,15 @@ public:
 
     virtual FunctionSignature getFunction() override {
         FunctionSignature f;
-        f.name = "gern::impl::add_1";
-        f.args = {Parameter(input), Parameter(output)};
+        f.name = "gern::impl::reduction";
+        f.args = {Parameter(input), Parameter(output), Parameter(k)};
         return f;
     }
 
 private:
     AbstractDataTypePtr input;
     AbstractDataTypePtr output;
+    Variable k{"k"};
 };
 
 class ArrayStaticGPU : public ArrayGPU {

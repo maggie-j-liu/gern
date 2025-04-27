@@ -36,12 +36,14 @@ target_sources(
         src/compose/compose.cpp
         src/compose/composable.cpp
         src/compose/composable_visitor.cpp
+        src/codegen/concretize.cpp
         src/codegen/codegen.cpp
         src/codegen/codegen_ir.cpp
         src/codegen/codegen_printer.cpp
         src/codegen/lower.cpp
         src/codegen/lower_visitor.cpp
         src/codegen/runner.cpp
+        src/codegen/finalizer.cpp
         # src/resolve_constraints/resolve_constraints.cpp
         src/utils/name_generator.cpp
     PUBLIC
@@ -65,17 +67,23 @@ target_sources(
         include/gern/annotations/stmt_nodes.h
         include/gern/annotations/visitor.h
         include/gern/annotations/rewriter.h
+        include/gern/annotations/shared_memory_manager.h
         # includgern/e/resolve_constraints/resolve_constraints.h
         include/gern/compose/compose.h
         include/gern/compose/composable.h
         include/gern/compose/composable_visitor.h
+        include/gern/compose/composable_node.h
         include/gern/compose/runner.h
+        include/gern/codegen/helpers/assert_device_properties.h
+        include/gern/codegen/helpers/check_last_error.h
+        include/gern/codegen/concretize.h
         include/gern/codegen/codegen.h
         include/gern/codegen/codegen_ir.h
         include/gern/codegen/codegen_visitor.h
         include/gern/codegen/codegen_printer.h
         include/gern/codegen/lower.h
         include/gern/codegen/lower_visitor.h
+        include/gern/codegen/finalizer.h
         include/gern/utils/debug.h
         include/gern/utils/error.h
         include/gern/utils/name_generator.h

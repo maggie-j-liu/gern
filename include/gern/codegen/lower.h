@@ -39,70 +39,6 @@ public:
 
 std::ostream &operator<<(std::ostream &os, const LowerIR &n);
 
-/**
- * @brief ComposeableLower takes a composable object and generated
- *        the IR that corresponds to that function call.
- *
- */
-class ComposableLower : private ComposableVisitorStrict {
-public:
-    ComposableLower(Composable composable)
-        : composable(composable) {
-    }
-
-    LowerIR lower();
-
-private:
-    using ComposableVisitorStrict::visit;
-    // Methods to lower different types of
-    // composable objects.
-    void visit(const Computation *);
-    void lower(const Computation *);
-
-    void visit(const TiledComputation *);
-    void lower(const TiledComputation *);
-
-    void visit(const ComputeFunctionCall *);
-    void visit(const GlobalNode *);
-
-    /**
-     * @brief common pulls out functionality used to define output.
-     *        common internally calls lower, so the lower function
-     *        must be implemented to work with the rest of the lowerer.
-     *
-     * @tparam T
-     */
-    template<typename T>
-    void common(const T *);
-
-    LowerIR define_loop_var(Assign start, Expr parameter, Variable step) const;
-    LowerIR generate_definitions(Assign definition) const;
-    LowerIR generate_constraints(std::vector<Constraint> constraints) const;  // Generate constraints.
-    LowerIR declare_computes(Pattern annotation) const;
-    LowerIR declare_consumes(Pattern annotation) const;
-    LowerIR constructADTForCurrentScope(AbstractDataTypePtr d, std::vector<Expr> fields);
-
-    // Helper methods to generate calls.
-    FunctionCall constructFunctionCall(FunctionSignature f,
-                                       std::vector<Variable> ref_md_fields,
-                                       std::vector<Expr> true_md_fields) const;                                // Constructs a call with the true meta data fields mapped in the correct place.
-    const QueryNode *constructQueryNode(AbstractDataTypePtr, std::vector<Expr>);                               // Constructs a query node for a data-structure, and tracks this relationship.
-    const AllocateNode *constructAllocNode(AbstractDataTypePtr, std::vector<Expr>);                            // Constructs a allocate for a data-structure, and tracks this relationship.
-    const InsertNode *constructInsertNode(AbstractDataTypePtr, AbstractDataTypePtr, std::vector<Expr>) const;  // Constructs a allocate for a data-structure, and tracks this relationship.
-    // Get the data-structure (queried, allocated, etc) that maps to the data
-    // structure in the current scope.
-    AbstractDataTypePtr getCurrent(AbstractDataTypePtr) const;
-
-    util::ScopedMap<AbstractDataTypePtr, AbstractDataTypePtr> current_ds;
-    util::ScopedMap<Variable, Variable> tiled_vars;
-    util::ScopedMap<Expr, Variable> parents;                // Used for splits.
-    util::ScopedMap<Variable, Variable> all_relationships;  // Used to track all relationships.
-    util::ScopedMap<Expr, Variable> tiled_dimensions;
-
-    LowerIR lowerIR;
-    Composable composable;
-};
-
 // IR Node that marks an allocation
 struct AllocateNode : public LowerIRNode {
     AllocateNode(FunctionCall f)
@@ -114,11 +50,11 @@ struct AllocateNode : public LowerIRNode {
 
 // IR Node that marks an free
 struct FreeNode : public LowerIRNode {
-    FreeNode(AbstractDataTypePtr data)
-        : data(data) {
+    FreeNode(MethodCall call)
+        : call(call) {
     }
     void accept(LowerIRVisitor *) const;
-    AbstractDataTypePtr data;
+    MethodCall call;
 };
 
 // IR Node that marks an insertion
@@ -126,12 +62,11 @@ struct FreeNode : public LowerIRNode {
 // into the parent data-structure as the
 // subset with meta-data values in fields.
 struct InsertNode : public LowerIRNode {
-    InsertNode(AbstractDataTypePtr parent, FunctionCall f)
-        : parent(parent), f(f) {
+    InsertNode(MethodCall call)
+        : call(call) {
     }
     void accept(LowerIRVisitor *) const;
-    AbstractDataTypePtr parent;
-    FunctionCall f;
+    MethodCall call;
 };
 
 struct GridDeclNode : public LowerIRNode {
@@ -143,28 +78,58 @@ struct GridDeclNode : public LowerIRNode {
     Variable v;
 };
 
+// struct GlobalDeclNode : public LowerIRNode {
+//     GlobalDeclNode(std::map<Grid::Dim, Variable> grid_dims,
+//                    Variable shared_mem,
+//                    LowerIR body);
+
+//     void accept(LowerIRVisitor *) const;
+//     std::map<Grid::Dim, Variable> grid_dims;
+//     Variable shared_mem;
+//     LowerIR body;
+// };
+
+struct SharedMemoryDeclNode : public LowerIRNode {
+    SharedMemoryDeclNode(Variable size)
+        : size(size) {
+    }
+    void accept(LowerIRVisitor *) const;
+    Variable size;
+};
+
 // IR Node that marks a query
 // The child data structure is produced
 // from the parent data-structure corresponding to
 // the subset with meta-data values in fields.
 struct QueryNode : public LowerIRNode {
-    QueryNode(AbstractDataTypePtr parent, FunctionCall f)
-        : parent(parent), f(f) {
+    QueryNode(AbstractDataTypePtr parent,
+              AbstractDataTypePtr child,
+              const std::vector<Expr> &fields,
+              MethodCall call,
+              const bool &insert,
+              LowerIR insert_call)
+        : parent(parent), child(child), fields(fields), call(call), insert(insert), insert_call(insert_call) {
     }
     void accept(LowerIRVisitor *) const;
     AbstractDataTypePtr parent;
-    FunctionCall f;
+    AbstractDataTypePtr child;
+    std::vector<Expr> fields;
+    MethodCall call;
+    bool insert;
+    LowerIR insert_call;
 };
 
 // IR Node marks a FunctionSignature call.
 struct ComputeNode : public LowerIRNode {
     ComputeNode(FunctionCall f,
-                std::vector<std::string> headers)
-        : f(f), headers(headers) {
+                std::vector<std::string> headers,
+                AbstractDataTypePtr adt)
+        : f(f), headers(headers), adt(adt) {
     }
     void accept(LowerIRVisitor *) const;
     FunctionCall f;
     std::vector<std::string> headers;
+    AbstractDataTypePtr adt;
 };
 
 // Block Nodes can hold a list of IR nodes.
@@ -233,13 +198,23 @@ struct BlankNode : public LowerIRNode {
 // Function boundary indicates that the corresponding
 // lowered nodes are called in a separate function body.
 // These may, or may not be, fused with the rest of the code.
-struct FunctionBoundary : public LowerIRNode {
-    FunctionBoundary(LowerIR nodes)
-        : nodes(nodes) {
+// struct FunctionBoundary : public LowerIRNode {
+//     FunctionBoundary(LowerIR nodes)
+//         : nodes(nodes) {
+//     }
+//     void accept(LowerIRVisitor *) const;
+//     std::map<AbstractDataTypePtr, AbstractDataTypePtr> queried_names;
+//     LowerIR nodes;
+// };
+
+struct OpaqueCall : public LowerIRNode {
+    OpaqueCall(FunctionCall f,
+               std::vector<std::string> headers)
+        : f(f), headers(headers) {
     }
     void accept(LowerIRVisitor *) const;
-    std::map<AbstractDataTypePtr, AbstractDataTypePtr> queried_names;
-    LowerIR nodes;
+    FunctionCall f;
+    std::vector<std::string> headers;
 };
 
 // Defining an abstract data class that we can use to define query and free node.

@@ -13,6 +13,7 @@
 
 namespace gern {
 
+struct LiteralNode;
 struct VariableNode;
 struct ADTMemberNode;
 struct AddNode;
@@ -55,9 +56,14 @@ public:
 
     void accept(ExprVisitorStrict *v) const;
     std::string str() const;
+    Datatype getType() const;
 };
 
 std::ostream &operator<<(std::ostream &os, const Expr &);
+
+// A more liberal check that only checks whether the leaf nodes,
+// and the binary nodes are the same semantically (does not check ptrs).
+bool isSameExpr(const Expr &a, const Expr &b);
 
 class Constraint : public util::IntrusivePtr<const ConstraintNode> {
 public:
@@ -68,11 +74,20 @@ public:
         : util::IntrusivePtr<const ConstraintNode>(n) {
     }
 
+    virtual Expr getA() const;
+    virtual Expr getB() const;
+
     std::string str() const;
     void accept(ConstraintVisitorStrict *v) const;
 };
 
 std::ostream &operator<<(std::ostream &os, const Constraint &);
+
+class Literal : public Expr {
+public:
+    Literal(const LiteralNode *);
+    typedef LiteralNode Node;
+};
 
 #define DEFINE_BINARY_CLASS(NAME, NODE)    \
     class NAME : public NODE {             \
@@ -149,8 +164,7 @@ public:
     typedef VariableNode Node;
 };
 
-class AbstractDataType : public util::Manageable<AbstractDataType>,
-                         public util::Uncopyable {
+class AbstractDataType : public util::Manageable<AbstractDataType> {
 public:
     AbstractDataType() = default;
     virtual ~AbstractDataType() = default;
@@ -198,8 +212,14 @@ public:
     AbstractDataTypePtr()
         : util::IntrusivePtr<const AbstractDataType>(nullptr) {
     }
-    explicit AbstractDataTypePtr(const AbstractDataType *n)
-        : util::IntrusivePtr<const AbstractDataType>(n) {
+
+    explicit AbstractDataTypePtr(const AbstractDataType *ptr)
+        : util::IntrusivePtr<const AbstractDataType>(ptr) {
+    }
+
+    template<typename T, std::enable_if_t<std::is_base_of_v<AbstractDataType, T>, int> = 0>
+    AbstractDataTypePtr(const T obj)
+        : util::IntrusivePtr<const AbstractDataType>(new T(obj)) {
     }
 
     std::string getName() const;
@@ -207,12 +227,14 @@ public:
     FunctionSignature getAllocateFunction() const;
     FunctionSignature getQueryFunction() const;
     FunctionSignature getInsertFunction() const;
+    FunctionSignature getFreeFunction() const;
     std::vector<Variable> getFields() const;
     bool freeQuery() const;
     bool insertQuery() const;
     bool freeAlloc() const;
     std::string str() const;
     ADTMember operator[](std::string) const;
+    bool operator==(const AbstractDataTypePtr &other) const;
 };
 
 std::ostream &operator<<(std::ostream &os, const AbstractDataTypePtr &ads);

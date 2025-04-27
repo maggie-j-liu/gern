@@ -2,26 +2,14 @@
 
 #include "annotations/argument.h"
 #include "annotations/data_dependency_language.h"
+#include "annotations/shared_memory_manager.h"
+#include "compose/composable_node.h"
 #include "utils/uncopyable.h"
 
 namespace gern {
 
 class ComposableVisitorStrict;
 class ComputeFunctionCall;
-
-/**
- * @brief ComposableNode is an object that Gern understands
- *        how to compose.
- *
- */
-class ComposableNode : public util::Manageable<ComposableNode>,
-                       public util::Uncopyable {
-public:
-    ComposableNode() = default;
-    virtual ~ComposableNode() = default;
-    virtual void accept(ComposableVisitorStrict *) const = 0;
-    virtual Annotation getAnnotation() const = 0;
-};
 
 /**
  * @brief Composable manages the lifetime of the ComposableNode object.
@@ -45,16 +33,23 @@ std::ostream &operator<<(std::ostream &os, const Composable &f);
 class GlobalNode : public ComposableNode {
 public:
     GlobalNode(Composable program,
-               std::map<Grid::Dim, Variable> launch_args);
+               std::map<Grid::Dim, Variable> launch_args,
+               Variable smem_size,
+               grid::SharedMemoryManager smem_manager);
+
     Annotation getAnnotation() const override;
     void accept(ComposableVisitorStrict *) const override;
     Composable program;
     std::map<Grid::Dim, Variable> launch_args;
+    Variable smem_size;
+    grid::SharedMemoryManager smem_manager;
 };
 
 // Wrap a function in a global interface, mostly for a nicety.
 Composable Global(Composable program,
-                  std::map<Grid::Dim, Variable> launch_args = {});
+                  std::map<Grid::Dim, Variable> launch_args = {},
+                  Variable smem_size = Variable(),
+                  grid::SharedMemoryManager smem_manager = {});
 
 /**
  * @brief Computation contains a vector of composable objects.
@@ -108,6 +103,44 @@ public:
     bool reduce = false;
 };
 
+class StageNode : public ComposableNode {
+public:
+    StageNode(AbstractDataTypePtr adt,
+              FunctionSignature query_f,
+              FunctionSignature insert_f,
+              Composable body,
+              bool insert);
+
+    Annotation getAnnotation() const override;
+    void init_annotation();
+    void accept(ComposableVisitorStrict *) const override;
+
+    Annotation _annotation;
+    AbstractDataTypePtr adt;
+    FunctionSignature query_f;
+    FunctionSignature insert_f;
+    Composable body;
+    bool insert;
+    SubsetObj staged_subset;
+    std::map<Variable, Variable> old_to_new;
+};
+
+Composable Stage(AbstractDataTypePtr adt,
+                 FunctionSignature query_f,
+                 FunctionSignature insert_f,
+                 Composable body,
+                 bool insert);
+
+Composable Stage(AbstractDataTypePtr adt,
+                 FunctionSignature query_f,
+                 FunctionSignature insert_f,
+                 Composable body);
+
+Composable Stage(AbstractDataTypePtr adt,
+                 FunctionSignature query_f,
+                 Composable body);
+
+Composable Stage(AbstractDataTypePtr adt, Composable body);
 // This class only exists for the overload.
 struct TileDummy {
     TileDummy(Expr to_tile, Variable v,

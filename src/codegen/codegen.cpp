@@ -5,6 +5,10 @@
 #include "annotations/lang_nodes.h"
 #include "annotations/rewriter_helpers.h"
 #include "annotations/visitor.h"
+#include "codegen/concretize.h"
+#include "codegen/finalizer.h"
+#include "codegen/helpers/assert_device_properties.h"
+#include "codegen/helpers/check_last_error.h"
 #include "codegen/lower.h"
 #include "utils/debug.h"
 #include "utils/error.h"
@@ -14,10 +18,14 @@ namespace codegen {
 
 CGStmt CodeGenerator::generate_code(Composable c) {
     // Lower each IR node one by one.
-    ComposableLower lower(c);
+    Concretize concretizer(c);
     // Generate code the after lowering.
     bool is_device_call = c.isDeviceLaunch();
-    top_level_codegen(lower.lower(), is_device_call);
+    auto ir = concretizer.concretize();
+    Finalizer finalizer(ir);
+    auto final_ir = finalizer.finalize();
+
+    top_level_codegen(final_ir, is_device_call);
 
     // Generate the hook.
     std::vector<CGStmt> hook_body;
@@ -41,9 +49,32 @@ CGStmt CodeGenerator::generate_code(Composable c) {
                                 Cast::make(Type::make(param.getType() + "*"),
                                            Var::make("args[" + std::to_string(i) + "]")))));
     }
+
+    // Generate calls to assertions before calling the function.
+    if (is_device_call) {
+        hook_body.push_back(gen(
+            helpers::assert_device_properties(
+                compute_func.grid.x,
+                compute_func.grid.y,
+                compute_func.grid.z,
+                compute_func.block.x,
+                compute_func.block.y,
+                compute_func.block.z,
+                getCurrentVal(Grid::Dim::WARP_DIM_X),
+                getCurrentVal(Grid::Dim::WARP_DIM_Y),
+                getCurrentVal(Grid::Dim::WARP_DIM_Z),
+                // If smem_size is not defined,
+                // then we will just run with default,
+                // just check trivial condition against 0.
+                compute_func.smem_size.defined() ? compute_func.smem_size : Expr(0))));
+    }
     // Now, call the compute function.
     CGStmt hook_call = gen(compute_func.constructCall());
     hook_body.push_back(hook_call);
+
+    if (is_device_call) {
+        hook_body.push_back(gen(helpers::check_last_error()));
+    }
 
     // Finally ready to generate the full file.
     std::vector<CGStmt> full_code;
@@ -53,6 +84,8 @@ CGStmt CodeGenerator::generate_code(Composable c) {
     }
     if (is_device_call) {
         full_code.push_back(EscapeCGStmt::make("#include <cuda_runtime.h>"));
+        full_code.push_back(EscapeCGStmt::make(helpers::assert_device_constraints_decl));
+        full_code.push_back(EscapeCGStmt::make(helpers::check_last_error_decl));
     }
     full_code.push_back(BlankLine::make());
     full_code.push_back(BlankLine::make());
@@ -71,6 +104,32 @@ CGStmt CodeGenerator::generate_code(Composable c) {
 }
 
 CGStmt CodeGenerator::top_level_codegen(LowerIR ir, bool is_device_launch) {
+
+    dims_defined[Grid::Dim::BLOCK_DIM_X].insert(1);
+    dims_defined[Grid::Dim::BLOCK_DIM_X].scope();
+
+    dims_defined[Grid::Dim::BLOCK_DIM_Y].insert(1);
+    dims_defined[Grid::Dim::BLOCK_DIM_Y].scope();
+
+    dims_defined[Grid::Dim::BLOCK_DIM_Z].insert(1);
+    dims_defined[Grid::Dim::BLOCK_DIM_Z].scope();
+
+    dims_defined[Grid::Dim::GRID_DIM_X].insert(1);
+    dims_defined[Grid::Dim::GRID_DIM_X].scope();
+
+    dims_defined[Grid::Dim::GRID_DIM_Y].insert(1);
+    dims_defined[Grid::Dim::GRID_DIM_Y].scope();
+
+    dims_defined[Grid::Dim::GRID_DIM_Z].insert(1);
+    dims_defined[Grid::Dim::GRID_DIM_Z].scope();
+
+    dims_defined[Grid::Dim::WARP_DIM_X].insert(32);
+    dims_defined[Grid::Dim::WARP_DIM_X].scope();
+    dims_defined[Grid::Dim::WARP_DIM_Y].insert(32);
+    dims_defined[Grid::Dim::WARP_DIM_Y].scope();
+    dims_defined[Grid::Dim::WARP_DIM_Z].insert(32);
+    dims_defined[Grid::Dim::WARP_DIM_Z].scope();
+
     this->visit(ir);  // code should contain the lowered IR.
 
     // Once we have visited the pipeline, we need to
@@ -81,14 +140,27 @@ CGStmt CodeGenerator::top_level_codegen(LowerIR ir, bool is_device_launch) {
     // or allocated to the FunctionSignature arguments. These are the
     // true inputs, or the true outputs.
     std::vector<AbstractDataTypePtr> to_declare_adts;
+
     std::set_difference(used_adt.begin(), used_adt.end(),
                         declared_adt.begin(), declared_adt.end(),
-                        std::back_inserter(to_declare_adts));
+                        std::back_inserter(to_declare_adts),
+                        std::less<AbstractDataTypePtr>());
 
     for (const auto &ds : to_declare_adts) {
-        argument_order.push_back(ds.getName());
         parameters.push_back(Parameter(ds));
     }
+
+    LaunchArguments block_dim{
+        .x = getCurrentVal(Grid::Dim::BLOCK_DIM_X),
+        .y = getCurrentVal(Grid::Dim::BLOCK_DIM_Y),
+        .z = getCurrentVal(Grid::Dim::BLOCK_DIM_Z),
+    };
+
+    LaunchArguments grid_dim{
+        .x = getCurrentVal(Grid::Dim::GRID_DIM_X),
+        .y = getCurrentVal(Grid::Dim::GRID_DIM_Y),
+        .z = getCurrentVal(Grid::Dim::GRID_DIM_Z),
+    };
 
     // Also (fake gen block and grid params, otherwise they will not be tracked as used).
     gen(block_dim.x);
@@ -97,6 +169,7 @@ CGStmt CodeGenerator::top_level_codegen(LowerIR ir, bool is_device_launch) {
     gen(grid_dim.x);
     gen(grid_dim.y);
     gen(grid_dim.z);
+    gen(smem_size);
 
     // Declare all the variables that have been used, but have not been defined.
     for (const auto &v : used) {
@@ -111,27 +184,43 @@ CGStmt CodeGenerator::top_level_codegen(LowerIR ir, bool is_device_launch) {
             template_arguments.push_back(v);
             continue;
         }
-        argument_order.push_back(v.getName());
         parameters.push_back(Parameter(v));
     }
 
     // The return type is always void, the output
     // is modified by reference.
     compute_func.name = name;
-    compute_func.args = parameters;
+
+    if (this->ordered_parameters.has_value() && !same_parameters(this->ordered_parameters.value(), parameters)) {
+        throw error::UserError("provided ordered arguments dont match the parameters needed for the function");
+    }
+    compute_func.args = this->ordered_parameters.value_or(parameters);
+    this->argument_order = get_parameter_names(compute_func.args);
+
     compute_func.template_args = template_arguments;
     compute_func.device = is_device_launch;
     compute_func.block = block_dim;
     compute_func.grid = grid_dim;
+    compute_func.smem_size = smem_size;
 
     if (is_device_launch) {
         compute_func.access = GLOBAL;
+        // push back helpers.
     } else {
         compute_func.access = HOST;
     }
 
     // This generate the function declaration with the body.
-    code = gen(compute_func, code);
+    // Make the grid assertions at the top level.
+    CGStmt code_temp = code;
+    std::vector<CGStmt> stmts;
+
+    // for (const auto &dim : dims_defined) {
+    //     stmts.push_back(assertGrid(dim.first));
+    // }
+
+    stmts.push_back(code_temp);
+    code = gen(compute_func, Block::make(stmts));
     return code;
 }
 
@@ -141,21 +230,20 @@ void CodeGenerator::visit(const AllocateNode *op) {
 
 void CodeGenerator::visit(const FreeNode *op) {
 
-    if (!declared_adt.contains(op->data)) {
+    if (!declared_adt.contains(op->call.data)) {
         throw error::InternalError("Freeing a data-structure that hasn't been allocated??");
     }
 
-    std::string method_call = op->data.getName() + ".destroy";
-    code = VoidCall::make(Call::make(method_call, {}));
+    code = gen(op->call);
 }
 
 void CodeGenerator::visit(const InsertNode *op) {
-    code = gen(op->f);
-    used_adt.insert(op->parent);
+    code = gen(op->call);
+    used_adt.insert(op->call.data);
 }
 
 void CodeGenerator::visit(const QueryNode *op) {
-    code = gen(op->f);
+    code = gen(op->call);
     used_adt.insert(op->parent);
 }
 
@@ -164,170 +252,6 @@ void CodeGenerator::visit(const ComputeNode *op) {
     // Add the header.
     std::vector<std::string> func_header = op->headers;
     headers.insert(func_header.begin(), func_header.end());
-}
-
-void CodeGenerator::visit(const IntervalNode *op) {
-
-    // First, lower the body of the interval node.
-    std::vector<CGStmt> body;
-    // In the case that the interval is mapped to a grid
-    // variable, set it up.
-    body.push_back(setGrid(op));
-    // Continue lowering the body now.
-    this->visit(op->body);
-    body.push_back(code);
-    code = Block::make(body);
-
-    // If the variable is not mapped to the grid, we need to actually
-    // wrap it in a for loop.
-    if (!op->isMappedToGrid()) {
-        Variable v = op->getIntervalVariable();
-        CGStmt start = gen(op->start, false);  // Definitely not a constexpr.
-        CGExpr cond = gen(v < op->end);
-        CGStmt step = gen(v += op->step, false);  // Definitely not a constexpr.
-        code = For::make(start, cond, step, code);
-    }
-}
-
-void CodeGenerator::visit(const DefNode *op) {
-    code = gen(op->assign, op->const_expr);
-}
-
-void CodeGenerator::visit(const AssertNode *op) {
-    Constraint rw_constraint = replaceDim(op->constraint, dims_defined);
-    std::string name = (isConstExpr(rw_constraint)) ?
-                           "static_assert" :  // If both A and B are const exprs, generate a static assert.
-                           "assert";          // Otherwise generate a normal assert.
-    code = VoidCall::make(Call::make(name, {gen(rw_constraint)}));
-}
-
-void CodeGenerator::visit(const GridDeclNode *op) {
-    code = declDim(op->dim, op->v);
-}
-
-void CodeGenerator::visit(const BlankNode *) {
-    code = BlankLine::make();
-}
-
-void CodeGenerator::visit(const BlockNode *op) {
-    std::vector<CGStmt> block;
-    for (const auto &node : op->ir_nodes) {
-        this->visit(node);
-        block.push_back(code);
-    }
-    code = Block::make(block);
-}
-
-void CodeGenerator::visit(const FunctionBoundary *op) {
-    CodeGenerator cg;
-    bool is_device = false;
-    // Push this back, so that we can declare it.
-    children.push_back(cg.top_level_codegen(op->nodes, is_device));
-    // Call the generated compute function.
-    code = gen(cg.getComputeFunctionSignature().constructCall());
-}
-
-Expr CodeGenerator::getExpr(const Grid::Dim &p) const {
-    switch (p) {
-    case Grid::Dim::BLOCK_DIM_X:
-        return block_dim.x;
-    case Grid::Dim::BLOCK_DIM_Y:
-        return block_dim.y;
-    case Grid::Dim::BLOCK_DIM_Z:
-        return block_dim.z;
-    case Grid::Dim::GRID_DIM_X:
-        return grid_dim.x;
-    case Grid::Dim::GRID_DIM_Y:
-        return grid_dim.y;
-    case Grid::Dim::GRID_DIM_Z:
-        return grid_dim.z;
-    default:
-        throw error::InternalError("Undefined Grid Dim Passed!");
-    }
-    return Expr(1);
-}
-
-CGExpr CodeGenerator::gen(const Grid::Dim &p) {
-    return gen(getExpr(p));
-}
-
-CGStmt CodeGenerator::declDim(const Grid::Dim &p, Expr val) {
-    if (dims_defined.contains(p)) {
-        auto temp = code;
-        Expr cur_val = dims_defined.at(p);
-        visit(new const AssertNode(cur_val == val));  // Generate an assert.
-        auto lowered = code;
-        code = temp;  // Restore.
-        return lowered;
-    } else {
-        dims_defined[p] = val;
-        switch (p) {
-        case Grid::Dim::BLOCK_DIM_X:
-            block_dim.x = val;
-            break;
-        case Grid::Dim::BLOCK_DIM_Y:
-            block_dim.y = val;
-            break;
-        case Grid::Dim::BLOCK_DIM_Z:
-            block_dim.z = val;
-            break;
-        case Grid::Dim::GRID_DIM_X:
-            grid_dim.x = val;
-            break;
-        case Grid::Dim::GRID_DIM_Y:
-            grid_dim.y = val;
-            break;
-        case Grid::Dim::GRID_DIM_Z:
-            grid_dim.y = val;
-            break;
-        default:
-            throw error::InternalError("Undefined Grid Dim Passed!");
-        }
-    }
-    return BlankLine::make();
-}
-
-#define VISIT_AND_DECLARE(op)          \
-    void visit(const op##Node *node) { \
-        this->visit(node->a);          \
-        auto a = cg_e;                 \
-        this->visit(node->b);          \
-        cg_e = op::make(a, cg_e);      \
-    }
-
-CGExpr CodeGenerator::gen(Expr e) {
-
-    struct ConvertToCode : public ExprVisitorStrict {
-        ConvertToCode(CodeGenerator *cg)
-            : cg(cg) {
-        }
-        using ExprVisitorStrict::visit;
-        void visit(const LiteralNode *op) {
-            cg_e = Literal::make(op->val, op->getDatatype());
-        }
-        void visit(const ADTMemberNode *op) {
-            cg_e = MetaData::make(cg->gen(op->ds), op->member);
-        }
-        void visit(const VariableNode *op) {
-            cg_e = Var::make(op->name);
-            cg->insertInUsed(op);
-        }
-        void visit(const GridDimNode *node) {
-            cg_e = cg->gen(node->dim);
-        }
-        VISIT_AND_DECLARE(Add);
-        VISIT_AND_DECLARE(Sub);
-        VISIT_AND_DECLARE(Mul);
-        VISIT_AND_DECLARE(Div);
-        VISIT_AND_DECLARE(Mod);
-
-        CodeGenerator *cg;
-        CGExpr cg_e;
-    };
-
-    ConvertToCode cg(this);
-    cg.visit(e);
-    return cg.cg_e;
 }
 
 static CGExpr genProp(const Grid::Unit &p) {
@@ -347,9 +271,175 @@ static CGExpr genProp(const Grid::Unit &p) {
     case Grid::Unit::THREAD_Z:
         return EscapeCGExpr::make("threadIdx.z");
 
+    case Grid::Unit::WARP_X:
+        return EscapeCGExpr::make("(threadIdx.x / 32)");
+    case Grid::Unit::WARP_Y:
+        return EscapeCGExpr::make("(threadIdx.y / 32)");
+    case Grid::Unit::WARP_Z:
+        return EscapeCGExpr::make("(threadIdx.z / 32)");
+
+    case Grid::Unit::THREAD_X_IN_WRAPS:
+        return EscapeCGExpr::make("(threadIdx.x % 32)");
+    case Grid::Unit::THREAD_Y_IN_WRAPS:
+        return EscapeCGExpr::make("(threadIdx.y % 32)");
+    case Grid::Unit::THREAD_Z_IN_WRAPS:
+        return EscapeCGExpr::make("(threadIdx.z % 32)");
+
     default:
         throw error::InternalError("Undefined Grid unit Passed!");
     }
+}
+
+void CodeGenerator::visit(const IntervalNode *op) {
+
+    // First, lower the body of the interval node.
+    std::vector<CGStmt> body;
+    // In the case that the interval is mapped to a grid
+    // variable, set it up.
+    // Continue lowering the body now.
+    Expr divisor = op->step;
+    Expr dividend = op->end - op->start.getB();
+    Expr ceil = (divisor + dividend - 1) / divisor;
+
+    if (op->isMappedToGrid()) {
+        dims_defined[getDim(op->p)].scope();
+    }
+
+    this->visit(op->body);
+    CGStmt body_code = code;
+
+    if (op->isMappedToGrid()) {
+
+        Expr first = 1;
+        auto dims = dims_defined[getDim(op->p)].pop();
+        if (dims.size() > 0) {
+            // set this to the puter dimension.
+            first = *dims.begin();
+        }
+
+        if (getLevel(op->p) == Grid::Level::WARPS) {
+            ceil = ceil * 32;
+        }
+
+        Variable interval_var = op->getIntervalVariable();
+        dims_defined[getDim(op->p)].insert(first * ceil);
+
+        body.push_back(VarAssign::make(
+            declVar(interval_var, false),
+            // Add any shift factor specified in the interval.
+            (((genProp(op->p) / gen(first)) % gen(ceil)) * gen(op->step)) + gen(op->start.getB())));
+    }
+
+    body.push_back(body_code);
+    code = Block::make(body);
+
+    // If the variable is not mapped to the grid, we need to actually
+    // wrap it in a for loop.
+    if (!op->isMappedToGrid()) {
+        Variable v = op->getIntervalVariable();
+        CGStmt start = gen(op->start, false);  // Definitely not a constexpr.
+        CGExpr cond = gen(v < op->end);
+        CGStmt step = gen(v += op->step, false);  // Definitely not a constexpr.
+        code = For::make(start, cond, step, code);
+    }
+}
+
+void CodeGenerator::visit(const DefNode *op) {
+    code = gen(op->assign, op->const_expr);
+}
+
+void CodeGenerator::visit(const AssertNode *op) {
+    // Set up the current values for the grid dims.
+    std::map<Grid::Dim, Expr> dims_defined_copy;
+    for (auto &dim : dims_defined) {
+        dims_defined_copy[dim.first] = getCurrentVal(dim.first);
+    }
+
+    Constraint rw_constraint = replaceDim(op->constraint, dims_defined_copy);
+    std::string name = (isConstExpr(rw_constraint)) ?
+                           "static_assert" :  // If both A and B are const exprs, generate a static assert.
+                           "assert";          // Otherwise generate a normal assert.
+    code = VoidCall::make(Call::make(name, {gen(rw_constraint)}));
+}
+
+void CodeGenerator::visit(const GridDeclNode *op) {
+    gen(op->v);
+    dims_defined[op->dim].insert(op->v);
+    code = BlankLine::make();
+}
+
+void CodeGenerator::visit(const SharedMemoryDeclNode *op) {
+    smem_size = op->size;
+    code = BlankLine::make();
+}
+
+void CodeGenerator::visit(const OpaqueCall *op) {
+    code = gen(op->f);
+    headers.insert(op->headers.begin(), op->headers.end());
+}
+
+void CodeGenerator::visit(const BlankNode *) {
+    code = BlankLine::make();
+}
+
+void CodeGenerator::visit(const BlockNode *op) {
+    std::vector<CGStmt> block;
+    for (const auto &node : op->ir_nodes) {
+        this->visit(node);
+        block.push_back(code);
+    }
+    code = Block::make(block);
+}
+
+CGExpr CodeGenerator::gen(const Grid::Dim &p) {
+    return gen(getCurrentVal(p));
+}
+
+#define VISIT_AND_DECLARE(op)          \
+    void visit(const op##Node *node) { \
+        this->visit(node->a);          \
+        auto a = cg_e;                 \
+        this->visit(node->b);          \
+        cg_e = op::make(a, cg_e);      \
+    }
+
+CGExpr CodeGenerator::gen(Expr e) {
+
+    if (!e.defined()) {
+        return CGExpr();
+    }
+
+    struct ConvertToCode : public ExprVisitorStrict {
+        ConvertToCode(CodeGenerator *cg)
+            : cg(cg) {
+        }
+        using ExprVisitorStrict::visit;
+        void visit(const LiteralNode *op) {
+            cg_e = Literal::make(op->val, op->getDatatype());
+        }
+        void visit(const ADTMemberNode *op) {
+            cg_e = MetaData::make(cg->gen(op->ds), op->member);
+        }
+        void visit(const VariableNode *op) {
+            cg_e = Var::make(op->name);
+            cg->insertInUsed(op);
+        }
+        void visit(const GridDimNode *node) {
+            cg_e = cg->gen(cg->getCurrentVal(node->dim));
+        }
+        VISIT_AND_DECLARE(Add);
+        VISIT_AND_DECLARE(Sub);
+        VISIT_AND_DECLARE(Mul);
+        VISIT_AND_DECLARE(Div);
+        VISIT_AND_DECLARE(Mod);
+
+        CodeGenerator *cg;
+        CGExpr cg_e;
+    };
+
+    ConvertToCode cg(this);
+    cg.visit(e);
+    return cg.cg_e;
 }
 
 #define VISIT_AND_DECLARE_CONSTRAINT(op, name) \
@@ -423,12 +513,9 @@ CGExpr CodeGenerator::declParameter(Parameter a,
         void visit(const DSArg *ds) {
             gen_expr = cg->declADT(ds->getADTPtr(), track, properties);
         }
-        void visit(const VarArg *v) {
-            gen_expr = cg->declVar(v->getVar(), properties.is_const, track);
-        }
 
-        void visit(const ExprArg *) {
-            throw error::InternalError("unreachable");
+        void visit(const ExprArg *e) {
+            gen_expr = cg->declVar(e->getVar(), properties.is_const, track);
         }
 
         CodeGenerator *cg;
@@ -454,10 +541,6 @@ CGExpr CodeGenerator::gen(Argument a) {
             gen_expr = cg->gen(ds->getADTPtr());
         }
 
-        void visit(const VarArg *v) {
-            gen_expr = cg->gen(v->getVar());
-        }
-
         void visit(const ExprArg *v) {
             gen_expr = cg->gen(v->getExpr());
         }
@@ -469,6 +552,12 @@ CGExpr CodeGenerator::gen(Argument a) {
     GenArgument generate(this);
     generate.visit(a);
     return generate.gen_expr;
+}
+
+CGStmt CodeGenerator::gen(MethodCall call) {
+    FunctionCall f = call.call;
+    f.name = call.data.getName() + "." + f.name;
+    return gen(f);
 }
 
 CGStmt CodeGenerator::gen(FunctionCall f) {
@@ -500,8 +589,25 @@ CGStmt CodeGenerator::gen(FunctionCall f) {
         stmt.push_back(VarAssign::make(
             VarDecl::make(dim3_type, block_name, DeclProperties()),
             Call::make("dim3", {gen(block.x), gen(block.y), gen(block.z)})));
-        call = KernelLaunch::make(f.name, args, template_args,
-                                  Var::make(grid_name), Var::make(block_name));
+
+        // Define the specialized function.
+        std::string func_sp_name = getUniqueName("function_sp");
+        stmt.push_back(VarAssign::make(
+            VarDecl::make(Type::make("auto"), func_sp_name, DeclProperties()),
+            SpecializedFunction::make(f.name, template_args)));
+
+        // Define the size of shared memory if applicable.
+        if (f.smem_size.defined()) {
+            stmt.push_back(VoidCall::make(Call::make("cudaFuncSetAttribute",
+                                                     {EscapeCGExpr::make(func_sp_name),
+                                                      EscapeCGExpr::make("cudaFuncAttributeMaxDynamicSharedMemorySize"),
+                                                      gen(f.smem_size)})));
+        }
+        // Has been specialized, use that.
+        call = KernelLaunch::make(func_sp_name, args, {},
+                                  Var::make(grid_name),
+                                  Var::make(block_name),
+                                  gen(f.smem_size));
     }
 
     if (f.output.defined()) {
@@ -595,27 +701,35 @@ CGExpr CodeGenerator::declADT(AbstractDataTypePtr ds,
     return decl;
 }
 
-CGStmt CodeGenerator::setGrid(const IntervalNode *op) {
-    // If not a grid mapping, do nothing.
-    if (!op->isMappedToGrid()) {
+void CodeGenerator::updateGrid(Grid::Dim dim, Expr expr) {
+    dims_defined[dim].insert(expr);
+}
+
+Expr CodeGenerator::getCurrentVal(const Grid::Dim &dim) {
+    if (dims_defined[dim].front().size() == 0) {
+        if (getLevel(dim) == Grid::Level::THREADS_WARPS) {
+            return 32;  // default warp size.
+        }
+        return 1;
+    }
+    return *dims_defined[dim].front().begin();
+}
+
+CGStmt CodeGenerator::assertGrid(const Grid::Dim &dim) {
+    std::vector<CGStmt> stmts;
+    const auto &exprs = dims_defined[dim].front();
+    if (exprs.empty()) {
         return BlankLine::make();
     }
 
-    Variable interval_var = op->getIntervalVariable();
-    Grid::Unit unit = op->p;
+    Expr first = *exprs.begin();
+    for (auto it = std::next(exprs.begin()); it != exprs.end(); ++it) {
+        auto new_const = new const AssertNode(first == *it);
+        visit(new_const);
+        stmts.push_back(code);
+    }
 
-    // This only works for ceiling.
-    Expr divisor = op->step;
-    Expr dividend = op->end - op->start.getB();
-    Expr ceil = (divisor + dividend - 1) / divisor;
-
-    // Store the grid dimension that correspond with this mapping.
-    declDim(getDim(unit), ceil);
-    // Actually declare the variable to use the grid.
-    return VarAssign::make(
-        declVar(interval_var, false),
-        // Add any shift factor specified in the interval.
-        (genProp(unit) * gen(op->step)) + gen(op->start.getB()));
+    return Block::make(stmts);
 }
 
 }  // namespace codegen

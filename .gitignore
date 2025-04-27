@@ -2,7 +2,9 @@
 .local/
 .vscode/
 _local/
-build*/
+*build*/
+/apps/blur/build_halide/
 cmake-build*/
 vcpkg_installed/
 Testing*/
+*.bin

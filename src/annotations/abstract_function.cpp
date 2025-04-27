@@ -33,6 +33,44 @@ FunctionCall FunctionCall::replaceAllDS(std::map<AbstractDataTypePtr, AbstractDa
     return new_call;
 }
 
+std::vector<Argument> FunctionCall::getAllArguments() const {
+    std::vector<Argument> all_args;
+    all_args.insert(all_args.end(), args.begin(), args.end());
+    all_args.insert(all_args.end(), template_args.begin(), template_args.end());
+    return all_args;
+}
+
+bool isSameFunctionCall(const FunctionCall &a, const FunctionCall &b) {
+
+    if (a.name != b.name) {
+        return false;
+    }
+
+    if (a.args.size() != b.args.size()) {
+        return false;
+    }
+
+    if (a.template_args.size() != b.template_args.size()) {
+        return false;
+    }
+
+    // Make sure all the arguments are the same.
+    for (size_t i = 0; i < a.args.size(); i++) {
+        if (!isSameArgument(a.args[i], b.args[i])) {
+            return false;
+        }
+    }
+
+    // Make sure all the template arguments are the same.
+    for (size_t i = 0; i < a.template_args.size(); i++) {
+        if (!isSameArgument(a.template_args[i], b.template_args[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 Composable AbstractFunction::constructComposableObject(std::vector<Argument> concrete_arguments) {
     FunctionSignature f = getFunction();
     std::map<AbstractDataTypePtr, AbstractDataTypePtr> abstract_to_concrete_adt;
@@ -57,9 +95,9 @@ Composable AbstractFunction::constructComposableObject(std::vector<Argument> con
             abstract_to_concrete_adt[abstract_ds->getADTPtr()] = concrete_ds->getADTPtr();
         }
 
-        if (isa<VarArg>(abstract_arg)) {
-            auto abstract_ds = to<VarArg>(abstract_arg.get());
-            auto concrete_ds = to<VarArg>(conc_arg.get());
+        if (isa<ExprArg>(abstract_arg)) {
+            auto abstract_ds = to<ExprArg>(abstract_arg.get());
+            auto concrete_ds = to<ExprArg>(conc_arg.get());
             fresh_names[abstract_ds->getVar()] = concrete_ds->getVar();
         }
     }
@@ -97,9 +135,9 @@ Composable AbstractFunction::constructComposableObject(std::vector<Argument> con
     // The binding is only valid for one use, erase it now.
     bindings = {};
 
-    std::vector<Expr> template_args;
+    std::vector<Argument> template_args;
     for (const auto &v : f.template_args) {
-        template_args.push_back(fresh_names.at(v));
+        template_args.push_back(Argument(fresh_names.at(v)));
     }
 
     Annotation rw_annotation = replaceVariables(            // Replace all variables with concrete vars.
@@ -137,10 +175,10 @@ void AbstractFunction::bindVariables(const std::map<std::string, Variable> &repl
     bindings.insert(replacements.begin(), replacements.end());
 }
 
-FunctionPtr::FunctionPtr(Composable function, Runner::Options options)
+FunctionPtr::FunctionPtr(Composable function, Runner::Options options, std::optional<std::vector<Parameter>> ordered_parameters)
     : function(function), options(options) {
     // Let's lower the function to get the signature.
-    Runner runner(function);
+    Runner runner(function, ordered_parameters);
     runner.compile(options);
     signature = runner.getSignature();
 }

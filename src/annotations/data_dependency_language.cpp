@@ -39,6 +39,14 @@ void Expr::accept(ExprVisitorStrict *v) const {
     ptr->accept(v);
 }
 
+Datatype Expr::getType() const {
+    Datatype type;
+    match(*this, std::function<void(const VariableNode *)>([&](const VariableNode *op) {
+        type = op->type;
+    }));
+    return type;
+}
+
 std::string Expr::str() const {
     std::stringstream ss;
     ss << *this;
@@ -56,6 +64,14 @@ void Constraint::accept(ConstraintVisitorStrict *v) const {
         return;
     }
     ptr->accept(v);
+}
+
+Expr Constraint::getA() const {
+    return Expr();
+}
+
+Expr Constraint::getB() const {
+    return Expr();
 }
 
 void Stmt::accept(StmtVisitorStrict *v) const {
@@ -160,10 +176,102 @@ std::ostream &operator<<(std::ostream &os, const Expr &e) {
     return os;
 }
 
-std::ostream &operator<<(std::ostream &os, const Constraint &c) {
+bool isSameExpr(const Expr &a, const Expr &b) {
+    struct IsSameExprVisitor : public ExprVisitorStrict {
+        IsSameExprVisitor(const Expr &a, const Expr &b)
+            : a(a), b(b) {
+        }
+
+        using ExprVisitorStrict::visit;
+
+        bool check() {
+            if (a.defined() && b.defined()) {
+                visit(a);
+                return isSame;
+            }
+
+            if (!a.defined() && !b.defined()) {
+                return true;
+            }
+
+            return false;
+        }
+
+        void visit(const LiteralNode *n) override {
+            if (isa<Literal>(b)) {
+                const LiteralNode *b_lit = to<LiteralNode>(b.ptr);
+                isSame = isSameValue(*n, *b_lit);
+                return;
+            }
+            isSame = false;
+        }
+
+        void visit(const VariableNode *n) override {
+            if (isa<Variable>(b)) {
+                Variable b_var = to<Variable>(b);
+                if (n->name == b_var.getName()) {
+                    isSame = true;
+                    return;
+                }
+            }
+            isSame = false;
+        }
+
+        void visit(const ADTMemberNode *n) override {
+            if (isa<ADTMember>(b)) {
+                ADTMember b_adt = to<ADTMember>(b);
+                if (n->ds == b_adt.getDS() && n->member == b_adt.getMember()) {
+                    isSame = true;
+                    return;
+                }
+            }
+            isSame = false;
+        }
+
+        void visit(const GridDimNode *n) override {
+            if (isa<GridDim>(b)) {
+                GridDim b_dim = to<GridDim>(b);
+                if (n->dim == b_dim.getDim()) {
+                    isSame = true;
+                    return;
+                }
+            }
+            isSame = false;
+        }
+
+#define DEFINE_BINARY_SameAs(NodeType, ClassType)                                    \
+    void visit(const NodeType *n) override {                                         \
+        if (isa<ClassType>(b)) {                                                     \
+            ClassType b_op = to<ClassType>(b);                                       \
+            isSame = isSameExpr(n->a, b_op.getA()) && isSameExpr(n->b, b_op.getB()); \
+        } else {                                                                     \
+            isSame = false;                                                          \
+        }                                                                            \
+    }
+
+        DEFINE_BINARY_SameAs(AddNode, Add);
+        DEFINE_BINARY_SameAs(SubNode, Sub);
+        DEFINE_BINARY_SameAs(MulNode, Mul);
+        DEFINE_BINARY_SameAs(DivNode, Div);
+        DEFINE_BINARY_SameAs(ModNode, Mod);
+
+        bool isSame = true;
+        Expr a, b;
+    };
+
+    IsSameExprVisitor isSameExprVisitor(a, b);
+    return isSameExprVisitor.check();
+}
+
+std::ostream &
+operator<<(std::ostream &os, const Constraint &c) {
     Printer p{os};
     p.visit(c);
     return os;
+}
+
+Literal::Literal(const LiteralNode *n)
+    : Expr(n) {
 }
 
 #define DEFINE_BINARY_OPERATOR(CLASS_NAME, OPERATOR, NODE)       \
@@ -353,20 +461,20 @@ Consumes Consumes::Subsets(ConsumeMany many) {
     return Consumes(getNode(many));
 }
 
-ConsumeMany Reduce(Assign start, Expr parameter, Variable step, ConsumeMany body,
-                   bool parallel) {
+ConsumeMany Reducible(Assign start, Expr parameter, Variable step, ConsumeMany body,
+                      bool parallel) {
     return ConsumeMany(
         new const ConsumesForNode(start, parameter, step, body, parallel));
 }
 
-ConsumeMany Reduce(Assign start, Expr parameter, Variable step, std::vector<SubsetObj> body,
-                   bool parallel) {
-    return Reduce(start, parameter, step, SubsetObjMany(body), parallel);
+ConsumeMany Reducible(Assign start, Expr parameter, Variable step, std::vector<SubsetObj> body,
+                      bool parallel) {
+    return Reducible(start, parameter, step, SubsetObjMany(body), parallel);
 }
 
-ConsumeMany Reduce(Assign start, Expr parameter, Variable step, SubsetObj body,
-                   bool parallel) {
-    return Reduce(start, parameter, step, std::vector<SubsetObj>{body}, parallel);
+ConsumeMany Reducible(Assign start, Expr parameter, Variable step, SubsetObj body,
+                      bool parallel) {
+    return Reducible(start, parameter, step, std::vector<SubsetObj>{body}, parallel);
 }
 
 Allocates::Allocates(const AllocatesNode *n)
@@ -406,6 +514,11 @@ std::vector<SubsetObj> Pattern::getInputs() const {
     return subset;
 }
 
+std::vector<SubsetObj> Pattern::getAllADTs() const {
+    std::vector<SubsetObj> subsets = getInputs();
+    subsets.push_back(getOutput());
+    return subsets;
+}
 std::vector<Variable> Pattern::getProducesField() const {
     std::vector<Variable> fields;
     match(*this, std::function<void(const ProducesNode *)>(
@@ -431,6 +544,17 @@ SubsetObj Pattern::getOutput() const {
     match(*this, std::function<void(const ProducesNode *)>(
                      [&](const ProducesNode *op) {
                          subset = op->output;
+                     }));
+    return subset;
+}
+
+SubsetObj Pattern::getCorrespondingSubset(AbstractDataTypePtr d) const {
+    SubsetObj subset;
+    match(*this, std::function<void(const SubsetNode *)>(
+                     [&](const SubsetNode *op) {
+                         if (op->data == d) {
+                             subset = op;
+                         }
                      }));
     return subset;
 }
@@ -490,16 +614,16 @@ Annotation resetUnit(Annotation annot, std::set<Grid::Unit> occupied) {
     return Annotation(annot.getPattern(), occupied, annot.getConstraints());
 }
 
-Pattern For(Assign start, Expr parameter, Variable step, Pattern body,
-            bool parallel) {
+Pattern Tileable(Assign start, Expr parameter, Variable step, Pattern body,
+                 bool parallel) {
     return Pattern(
         new const ComputesForNode(start, parameter, step, body, parallel));
 }
 
-Pattern For(Assign start, Expr parameter, Variable step,
-            Produces produces, Consumes consumes,
-            bool parallel) {
-    return For(start, parameter, step, Computes(produces, consumes), parallel);
+Pattern Tileable(Assign start, Expr parameter, Variable step,
+                 Produces produces, Consumes consumes,
+                 bool parallel) {
+    return Tileable(start, parameter, step, Computes(produces, consumes), parallel);
 }
 
 std::string AbstractDataTypePtr::getName() const {
@@ -537,6 +661,13 @@ FunctionSignature AbstractDataTypePtr::getInsertFunction() const {
     return ptr->getInsertFunction();
 }
 
+FunctionSignature AbstractDataTypePtr::getFreeFunction() const {
+    if (!defined()) {
+        throw error::InternalError("Deref null!");
+    }
+    return ptr->getFreeFunction();
+}
+
 std::vector<Variable> AbstractDataTypePtr::getFields() const {
     if (!defined()) {
         throw error::InternalError("Deref null!");
@@ -567,6 +698,10 @@ bool AbstractDataTypePtr::freeAlloc() const {
 
 ADTMember AbstractDataTypePtr::operator[](std::string member) const {
     return ADTMember(*this, member, false);
+}
+
+bool AbstractDataTypePtr::operator==(const AbstractDataTypePtr &other) const {
+    return getName() == other.getName();
 }
 
 std::string AbstractDataTypePtr::str() const {
