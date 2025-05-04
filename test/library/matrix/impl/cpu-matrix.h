@@ -515,6 +515,10 @@ inline void mmul(MatrixCPU a, MatrixCPU b, MatrixCPU out) {
     cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, a.row, b.col, a.col, 1, a.data, a.lda, b.data, b.lda, 0, out.data, out.lda);
 }
 
+inline void mmul(MatrixCPU a, MatrixCPU b, MatrixCPU out, int64_t k_dummy) {
+	mmul(a, b, out);
+}
+
 inline void mmul2d(MatrixCPU4Dim a, MatrixCPU4Dim b, MatrixCPU4Dim out) {
     float *a_data;
     float *b_data;
@@ -536,12 +540,12 @@ inline void attention(MatrixCPU q, MatrixCPU k, MatrixCPU v, MatrixCPU out) {
     gern::impl::MatrixCPU t = gern::impl::MatrixCPU::allocate(0, 0, k.col, k.row);
     gern::impl::transpose(k, t);
     gern::impl::MatrixCPU matmul = gern::impl::MatrixCPU::allocate(0, 0, q.row, k.row);
-    gern::impl::mmul(q, t, matmul);
+    gern::impl::mmul(q, t, matmul, q.col);
     gern::impl::MatrixCPU truediv = gern::impl::MatrixCPU::allocate(0, 0, q.row, k.row);
     gern::impl::divn(matmul, sqrt(q.col), truediv);
     gern::impl::MatrixCPU softmax = gern::impl::MatrixCPU::allocate(0, 0, q.row, k.row);
     gern::impl::softmax(truediv, softmax);
-    gern::impl::mmul(softmax, v, out);
+    gern::impl::mmul(softmax, v, out, softmax.col);
     matmul.destroy();
     truediv.destroy();
     softmax.destroy();
@@ -654,6 +658,10 @@ inline void matrix_multiply(MatrixCPU a, MatrixCPU b, MatrixCPU c, int64_t k_dum
             c_data[j] += sum;
         }
     }
+}
+
+inline void matrix_multiply(MatrixCPU4Dim a, MatrixCPU4Dim b, MatrixCPU4Dim c) {
+	at::matmul_out(c.tensor, a.tensor, b.tensor);
 }
 
 }  // namespace impl

@@ -4,6 +4,7 @@ project(gern_benchmarks)
 find_package(benchmark REQUIRED)
 
 add_executable(gern_benchmarks main.cpp)
+add_compile_options(-O3 -march=native -DNDEBUG)
 include_directories(${PROJECT_BINARY_DIR}/test
 "/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/include"
 "/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/include/torch/csrc/api/include"

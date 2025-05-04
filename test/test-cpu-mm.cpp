@@ -406,3 +406,265 @@ TEST(LoweringCPU, HoistDoubleMM) {
     e.destroy();
     ref_e.destroy();
 }
+
+TEST(LoweringCPU, DoubleMM) {
+    auto A_DS = AbstractDataTypePtr(new const annot::MatrixCPU("A"));
+    auto B_DS = AbstractDataTypePtr(new const annot::MatrixCPU("B"));
+    auto C_DS = AbstractDataTypePtr(new const annot::MatrixCPU("C"));
+    auto D_DS = AbstractDataTypePtr(new const annot::MatrixCPU("D"));
+    auto E_DS = AbstractDataTypePtr(new const annot::MatrixCPU("E"));
+
+    annot::MatrixMultiplyCPU matrix_multiply;
+    Variable k1("k1");
+    Variable k2("k2");
+    Variable ti("ti");
+    Variable tj("tj");
+    Variable tk("tk");
+
+
+	// a_row x a_col @ b_row x b_col -> k1 is a_col, output is a_row x b_col
+	// a_row x b_col @ d_row x d_col -> k2 is b_col, output is a_row x d_col
+
+	// 3 x 5 @ 5 x 4 -> 3 x 4
+	// 3 x 4 @ 4 x 6 -> 3 x 6
+
+    Composable program({
+        Tile(E_DS["row"], ti)(
+            Tile(E_DS["col"], tj)(
+            		matrix_multiply(A_DS, B_DS, C_DS, k1),
+                    matrix_multiply(C_DS, D_DS, E_DS, k2))),
+    });
+
+    Runner run(program);
+    run.compile(test::cpuRunner(std::vector<std::string>{"matrix"}));
+
+    int64_t num_row = 4;
+    int64_t num_col = 4;
+
+    impl::MatrixCPU a(3, 5, 5);
+    a.ascending();
+    impl::MatrixCPU b(5, 4, 4);
+    b.ascending();
+    impl::MatrixCPU c(3, 4, 4);
+    c.vvals(0.0f);
+    impl::MatrixCPU d(4, 6, 6);
+    d.ascending();
+    impl::MatrixCPU e(3, 6, 6);
+    e.vvals(0.0f);
+
+    int64_t ti_val = 1;
+    int64_t tj_val = 2;
+
+	int64_t a_col = 5;
+	int64_t b_col = 4;
+
+    run.evaluate({
+        {A_DS.getName(), &a},
+        {B_DS.getName(), &b},
+        {D_DS.getName(), &d},
+        {E_DS.getName(), &e},
+        {k1.getName(), &a_col},
+        {k2.getName(), &b_col},
+        {ti.getName(), &ti_val},
+        {tj.getName(), &tj_val},
+    });
+
+    impl::MatrixCPU ref_e(3, 6, 6);
+    ref_e.vvals(0.0f);
+    c.vvals(0.0f);
+
+    impl::matrix_multiply(a, b, c, a_col);
+    impl::matrix_multiply(c, d, ref_e, b_col);
+
+    for (int i = 0; i < 3 * 6; i++) {
+        ASSERT_TRUE(e.data[i] == ref_e.data[i]);
+    }
+
+    a.destroy();
+    b.destroy();
+    c.destroy();
+    d.destroy();
+    e.destroy();
+    ref_e.destroy();
+}
+
+TEST(LoweringCPU, DoubleMM2) {
+    auto A_DS = AbstractDataTypePtr(new const annot::MatrixCPU("A"));
+    auto B_DS = AbstractDataTypePtr(new const annot::MatrixCPU("B"));
+    auto C_DS = AbstractDataTypePtr(new const annot::MatrixCPU("C"));
+    auto D_DS = AbstractDataTypePtr(new const annot::MatrixCPU("D"));
+    auto E_DS = AbstractDataTypePtr(new const annot::MatrixCPU("E"));
+
+    Variable k1("k1");
+    Variable k2("k2");
+    Variable ti("ti");
+    Variable tj("tj");
+
+    annot::MatrixMultiply matrix_multiply1;
+	matrix_multiply1[{ { "shared_len", k1 }}];
+    annot::MatrixMultiply matrix_multiply2;
+	matrix_multiply2[{ { "shared_len", k2 }}];
+
+	// a_row x a_col @ b_row x b_col -> k1 is a_col, output is a_row x b_col
+	// a_row x b_col @ d_row x d_col -> k2 is b_col, output is a_row x d_col
+
+	// 3 x 5 @ 5 x 4 -> 3 x 4
+	// 3 x 4 @ 4 x 6 -> 3 x 6
+
+    Composable program({
+        Tile(E_DS["row"], ti)(
+            Tile(E_DS["col"], tj)(
+            		matrix_multiply1(A_DS, B_DS, C_DS),
+                    matrix_multiply2(C_DS, D_DS, E_DS))),
+    });
+
+    Runner run(program);
+    run.compile(test::cpuRunner(std::vector<std::string>{"matrix"}));
+
+    int64_t num_row = 4;
+    int64_t num_col = 4;
+
+    impl::MatrixCPU a(3, 5, 5);
+    a.ascending();
+    impl::MatrixCPU b(5, 4, 4);
+    b.ascending();
+    impl::MatrixCPU c(3, 4, 4);
+    c.vvals(0.0f);
+    impl::MatrixCPU d(4, 6, 6);
+    d.ascending();
+    impl::MatrixCPU e(3, 6, 6);
+    e.vvals(0.0f);
+
+    int64_t ti_val = 1;
+    int64_t tj_val = 2;
+
+	int64_t a_col = 5;
+	int64_t b_col = 4;
+
+    run.evaluate({
+        {A_DS.getName(), &a},
+        {B_DS.getName(), &b},
+        {D_DS.getName(), &d},
+        {E_DS.getName(), &e},
+        {k1.getName(), &a_col},
+        {k2.getName(), &b_col},
+        {ti.getName(), &ti_val},
+        {tj.getName(), &tj_val},
+    });
+
+    impl::MatrixCPU ref_e(3, 6, 6);
+    ref_e.vvals(0.0f);
+    c.vvals(0.0f);
+
+    impl::mmul(a, b, c);
+    impl::mmul(c, d, ref_e);
+
+    for (int i = 0; i < 3 * 6; i++) {
+        ASSERT_TRUE(e.data[i] == ref_e.data[i]);
+    }
+
+    a.destroy();
+    b.destroy();
+    c.destroy();
+    d.destroy();
+    e.destroy();
+    ref_e.destroy();
+}
+
+TEST(LoweringCPU, DoubleMM24D) {
+    auto A_DS = AbstractDataTypePtr(new const annot::MatrixCPU4Dim("A"));
+    auto B_DS = AbstractDataTypePtr(new const annot::MatrixCPU4Dim("B"));
+    auto C_DS = AbstractDataTypePtr(new const annot::MatrixCPU4Dim("C"));
+    auto D_DS = AbstractDataTypePtr(new const annot::MatrixCPU4Dim("D"));
+    auto E_DS = AbstractDataTypePtr(new const annot::MatrixCPU4Dim("E"));
+
+    Variable k1("k1");
+    Variable k2("k2");
+    Variable l_w("l_w");
+    Variable l_x("l_x");
+    Variable l_y("l_y");
+    Variable l_z("l_z");
+
+    annot::MatrixMultiply4D matrix_multiply1;
+	matrix_multiply1[{ { "shared_len", k1 }}];
+    annot::MatrixMultiply4D matrix_multiply2;
+	matrix_multiply2[{ { "shared_len", k2 }}];
+
+	// a_row x a_col @ b_row x b_col -> k1 is a_col, output is a_row x b_col
+	// a_row x b_col @ d_row x d_col -> k2 is b_col, output is a_row x d_col
+
+	// 3 x 5 @ 5 x 4 -> 3 x 4
+	// 3 x 4 @ 4 x 6 -> 3 x 6
+
+    Composable program({
+        Tile(E_DS["dims[0]"], l_w)(
+            Tile(E_DS["dims[1]"], l_x)(
+                Tile(E_DS["dims[2]"], l_y)(
+                    Tile(E_DS["dims[3]"], l_z)(
+                        matrix_multiply1(A_DS, B_DS, C_DS),
+                        matrix_multiply2(C_DS, D_DS, E_DS)
+                    )
+                )
+            )
+        )
+    });
+
+    Runner run(program);
+    run.compile(test::cpuRunner(std::vector<std::string>{"matrix"}));
+
+    impl::MatrixCPU4Dim a(1, 2, 3, 5);
+    a.random_fill();
+    impl::MatrixCPU4Dim b(1, 2, 5, 4);
+    b.random_fill();
+    impl::MatrixCPU4Dim c(1, 2, 3, 4);
+    c.vvals(0.0f);
+    impl::MatrixCPU4Dim d(1, 2, 4, 6);
+    d.random_fill();
+    impl::MatrixCPU4Dim e(1, 2, 3, 6);
+    e.vvals(0.0f);
+
+    int64_t l_w_val = 1;
+    int64_t l_x_val = 2;
+    int64_t l_y_val = 1;
+    int64_t l_z_val = 6;
+
+	int64_t a_col = 5;
+	int64_t b_col = 4;
+
+    run.evaluate({
+		{A_DS.getName(), &a},
+		{B_DS.getName(), &b},
+		{D_DS.getName(), &d},
+		{E_DS.getName(), &e},
+		{l_w.getName(), &l_w_val},
+		{l_x.getName(), &l_x_val},
+		{l_y.getName(), &l_y_val},
+		{l_z.getName(), &l_z_val},
+		{k1.getName(), &a_col},
+		{k2.getName(), &b_col}
+	});
+
+    impl::MatrixCPU4Dim ref_e(1, 2, 3, 6);
+    ref_e.vvals(0.0f);
+    c.vvals(0.0f);
+
+    impl::matrix_multiply(a, b, c);
+    impl::matrix_multiply(c, d, ref_e);
+
+    for (int i = 0; i < 1; i++) {
+		for (int j = 0; j < 2; j++) {
+			for (int k = 0; k < 3; k++) {
+				for (int l = 0; l < 6; l++) {
+        			ASSERT_TRUE(*e.at(i, j, k, l) == *ref_e.at(i, j, k, l));
+				}
+			}
+		}
+    }
+
+    a.destroy();
+    b.destroy();
+    c.destroy();
+    d.destroy();
+    e.destroy();
+    ref_e.destroy();
+}

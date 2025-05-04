@@ -801,7 +801,7 @@ public:
             output(new const MatrixCPU4Dim("output")) {
     }
     std::string getName() {
-        return "gern::impl::mmul2d";
+        return "gern::impl::matrix_multiply";
     }
 
     Annotation getAnnotation() override {
@@ -818,16 +818,18 @@ public:
         Variable row("row");
         Variable col("col");
 
-        Variable shared_len("shared_len");
+		Variable k("k");
+		Variable tk("tk", Datatype::Int64);
 
         auto innerLoop = Tileable(y = Expr(0), output["dims[2]"], l_y,
                             Tileable(z = Expr(0), output["dims[3]"], l_z,
                                 Produces::Subset(output, {w, x, y, z, l_w, l_x, l_y, l_z}),
                                 Consumes::Subsets(
-                                    SubsetObjMany({
-                                        SubsetObj(a, {w, x, y, 0, l_w, l_x, l_y, shared_len}),
-                                        SubsetObj(b, {w, x, 0, z, l_w, l_x, shared_len, l_z})
-                                    }))));
+									Reducible(k = Expr(0), shared_len, tk,
+										SubsetObjMany({
+											SubsetObj(a, {w, x, y, k, l_w, l_x, l_y, tk}),
+											SubsetObj(b, {w, x, k, z, l_w, l_x, tk, l_z})
+                                    	})))));
         
         auto outerLoop = Tileable(w = Expr(0), output["dims[0]"], l_w, 
                             Tileable(x = Expr(0), output["dims[1]"], l_x, innerLoop));
@@ -843,7 +845,7 @@ public:
 
     virtual FunctionSignature getFunction() override {
         FunctionSignature f;
-        f.name = "gern::impl::mmul2d";
+        f.name = "gern::impl::matrix_multiply";
         f.args = {Parameter(a), Parameter(b), Parameter(output)};
         return f;
     }
@@ -852,6 +854,7 @@ protected:
     AbstractDataTypePtr a;
     AbstractDataTypePtr b;
     AbstractDataTypePtr output;
+    Variable shared_len{ "shared_len" };
     Variable end{"end"};
 };
 
@@ -873,19 +876,21 @@ public:
         Variable l_x("l_x");
         Variable l_y("l_y");
 
+		Variable k("k");
+		Variable tk("tk", Datatype::Int64);
+
         Variable row("row");
         Variable col("col");
-
-        Variable shared_len("shared_len");
 
         return annotate(Tileable(x = Expr(0), output["row"], l_x,
                             Tileable(y = Expr(0), output["col"], l_y,
                                 Produces::Subset(output, {x, y, l_x, l_y}),
                                 Consumes::Subsets(
+									Reducible(k = Expr(0), shared_len, tk,
                                     SubsetObjMany({
-                                        SubsetObj(a, {x, 0, l_x, shared_len}),
-                                        SubsetObj(b, {0, y, shared_len, l_y})
-                                    })))));
+                                        SubsetObj(a, {x, k, l_x, tk}),
+                                        SubsetObj(b, {k, y, tk, l_y})
+                                    }))))));
     }
 
     std::vector<std::string> getHeader() override {
@@ -905,6 +910,7 @@ protected:
     AbstractDataTypePtr a;
     AbstractDataTypePtr b;
     AbstractDataTypePtr output;
+    Variable shared_len{"shared_len", Datatype::Int64};
     Variable end{"end"};
 };
 
@@ -1087,6 +1093,54 @@ private:
     AbstractDataTypePtr C;
     Variable k_dim{"k_dim", Datatype::Int64};
 };
+
+class MatrixMultiplyCPU4D : public AbstractFunction {
+	public:
+		MatrixMultiplyCPU4D()
+			: A(new const MatrixCPU4Dim("A")),
+			  B(new const MatrixCPU4Dim("B")),
+			  C(new const MatrixCPU4Dim("C")) {
+		}
+	
+		Annotation getAnnotation() override {
+			Variable i("i");
+			Variable j("j");
+			Variable k("k");
+	
+			Variable ti("ti", Datatype::Int64);
+			Variable tj("tj", Datatype::Int64);
+			Variable tk("tk", Datatype::Int64);
+	
+			return annotate(Tileable(i = Expr(0), ADTMember(C, "row", false), ti,
+									 Tileable(j = Expr(0), ADTMember(C, "col", false), tj,
+											  Produces::Subset(C, {i, j, ti, tj}),
+											  Consumes::Subsets(
+												  Reducible(k = Expr(0), k_dim, tk,
+															SubsetObjMany({
+																SubsetObj(A, {i, k, ti, tk}),
+																SubsetObj(B, {k, j, tk, tj}),
+															}))))));
+		}
+	
+		FunctionSignature getFunction() override {
+			FunctionSignature f;
+			f.name = "gern::impl::matrix_multiply";
+			f.args = {Parameter(A), Parameter(B), Parameter(C), k_dim};
+			return f;
+		}
+	
+		std::vector<std::string> getHeader() override {
+			return {
+				"cpu-matrix.h",
+			};
+		}
+	
+	private:
+		AbstractDataTypePtr A;
+		AbstractDataTypePtr B;
+		AbstractDataTypePtr C;
+		Variable k_dim{"k_dim", Datatype::Int64};
+	};
 
 }  // namespace annot
 }  // namespace gern
