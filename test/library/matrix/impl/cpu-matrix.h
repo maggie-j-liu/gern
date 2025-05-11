@@ -39,14 +39,14 @@ public:
     void destroy() {
     }
 
-    MatrixCPU4Dim query(int64_t w, int64_t x, int64_t y, int64_t z, int64_t l_w, int64_t l_x, int64_t l_y, int64_t l_z) {
+    inline MatrixCPU4Dim query(int64_t w, int64_t x, int64_t y, int64_t z, int64_t l_w, int64_t l_x, int64_t l_y, int64_t l_z) {
         return MatrixCPU4Dim(tensor.index({torch::indexing::Slice(w, w + l_w),
                                             torch::indexing::Slice(x, x + l_x),
                                             torch::indexing::Slice(y, y + l_y),
                                             torch::indexing::Slice(z, z + l_z)}));
     }
 
-    void insert(int64_t w, int64_t x, int64_t y, int64_t z,
+    inline void insert(int64_t w, int64_t x, int64_t y, int64_t z,
         int64_t l_w, int64_t l_x, int64_t l_y, int64_t l_z,
         const MatrixCPU4Dim& to_insert) {
         tensor.index_put_({torch::indexing::Slice(w, w + l_w),

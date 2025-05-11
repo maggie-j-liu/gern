@@ -107,9 +107,14 @@ Composable AbstractFunction::constructComposableObject(std::vector<Argument> con
             fresh_names[template_arg] = bindings.at(template_arg.getName());
             continue;
         }
-        fresh_names[template_arg] = Variable(getUniqueName("_gern_" + template_arg.getName()),
-                                             template_arg.getDatatype(),
-                                             true);
+        fresh_names[template_arg] = Variable(new const VariableNode(
+            getUniqueName("_gern_" + template_arg.getName()),
+            template_arg.getBoundUnit(),
+            template_arg.getDatatype(),
+            true,
+            template_arg.isBound(),
+            template_arg.getInt64Val()
+        ));
     }
 
     Annotation annotation = getAnnotation();

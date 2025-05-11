@@ -92,9 +92,18 @@ target_sources(
         include/gern/utils/uncopyable.h
 )
 
+
+include_directories(${PROJECT_BINARY_DIR}/test
+"/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/include"
+"/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/include/torch/csrc/api/include"
+)
+
+target_link_directories(Gern_Gern PRIVATE
+"/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/lib")
+
 target_compile_definitions(Gern_Gern PUBLIC $<$<CONFIG:Debug>:GERN_DEBUG_BUILD>)
 target_compile_features(Gern_Gern PUBLIC cxx_std_20)
-target_link_libraries(Gern_Gern PRIVATE ${CMAKE_DL_LIBS} "${TORCH_LIBRARIES}")
+target_link_libraries(Gern_Gern PRIVATE ${CMAKE_DL_LIBS} "${TORCH_LIBRARIES}" torch torch_cpu c10)
 
 configure_file(
     "test/config.h.in"

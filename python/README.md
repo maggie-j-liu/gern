@@ -45,6 +45,30 @@ It defines
 
 - a `FnInterface` class that users can use to set parameters for different Gern-annotated functions
 - a `gen` method that takes in
-  - `M`, a Pytorch module to generate an optimized version of
+  - `M`, a Pytorch NN module to generate an optimized version of
   - `torch_to_gern`, a map of functions to `FnInterface` instances (which keeps track of the Gern annotation of each function and additional arguments)
   - `tile_rows`, a parameter (for testing) that sets the row tiling of the generated loops. This should be removed eventually and changed to some calculation based on the size of the tensors.
+
+When `gen` is called, it creates an optimized version of the module `M` passed in and returns it.
+
+To do this, it traces through all of the nodes in the call graph. If it finds a contiguous section of method calls that are defined in `torch_to_gern` (which means they can be replaced by calls to Fern-annotated functions), it will
+
+- create a gern Composable with this specific set of calls, passing in the correct arguments
+- create a Gern Runner to run this specific set of calls
+- compile the Composable with the Runner
+- remove these nodes out of the PyTorch traced graph and replace it with a single call to an external function -- `gern_function_call`
+
+When the `gern_function_call` node is called, it will receive the Runner (which has compiled the program already), the input and output `AbtractDataTypePtr`s, any additional arguments to be passed to Runner::evaluate, and the actual inputs. Then, it can call `Runner::evaluate`, passing in the correct arguments, and return the output.
+
+In this way, the custom `torch.compile` backend traces through the entire forward pass of the NN module and replaces sets of call with an equivalent call into Gern code.
+
+### Todos / Improvements
+
+- Right now, only arguments to functions are properly handled and kwargs are not. There also needs to be flexibility between the order arguments are passed in a pytorch function and the order arguments into Gern (because some Gern functions might expect a slightly different argument order).
+- Adding more annotations to the `MatrixCPU` interface. Right now, the `MatrixCPU` interface uses a custom implementation of a 2D Matrix (found in `test/library/matrix/impl/cpu-matrix.h`). An idea to make it easier to implement different operations is to directly use libtorch (C++ library for Pytorch) tensors and operations on these tensors. An example of doing this is in the `MatrixCPU4Dim` interface (also in `test/library/matrix/impl/cpu-matrix.h`).
+
+## Examples
+
+- `python/python_test.py` contains an example of using the Python bindings to write a Gern program (in this case, it adds 2 to every element in the matrix)
+
+-

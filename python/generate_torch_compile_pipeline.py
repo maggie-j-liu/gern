@@ -18,7 +18,7 @@ class FnInterface:
         self.extra_args = extra_args
 
 
-def function_call_fn(runner, inp, output_adt_ptr, out_size, input_adt_ptrs, *args):
+def gern_function_call(runner, inp, output_adt_ptr, out_size, input_adt_ptrs, *args):
     args = [torch.Tensor.contiguous(arg) if isinstance(arg, torch.Tensor) else arg for arg in args]
     # print("CALLING EVALUATE")
     # print("INPUT ADT PTRS", input_adt_ptrs)
@@ -203,7 +203,7 @@ def gen(M, torch_to_gern, *args, tile_rows=512, debug=False):
                     if debug:
                         print("RELEVANT OUTPUT NODES", len(relevant_output_nodes), relevant_output_nodes)
                     with gm.graph.inserting_after(node):
-                        new_node = gm.graph.create_node("call_function", function_call_fn, args=(runner_node, capsules_node, output_adt_ptr_node, out_size_node, input_node, *relevant_input_nodes), name="replaced_" + node.name)
+                        new_node = gm.graph.create_node("call_function", gern_function_call, args=(runner_node, capsules_node, output_adt_ptr_node, out_size_node, input_node, *relevant_input_nodes), name="replaced_" + node.name)
                         node.replace_all_uses_with(new_node)
                         gm.graph.erase_node(node)
                     

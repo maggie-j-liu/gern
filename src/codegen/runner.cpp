@@ -5,11 +5,19 @@
 #include <cstdlib>
 #include <dlfcn.h>
 #include <fstream>
+#include <stdlib.h>
+#include <torch/torch.h>
+
+bool threadsSet = false;
 
 namespace gern {
 
 void Runner::compile(Options config) {
-
+	if (!threadsSet) {
+		threadsSet = true;
+		torch::set_num_threads(1);
+		torch::set_num_interop_threads(1);  // Optional: also restrict inter-op parallelism
+	}
     codegen::CodeGenerator cg(this->ordered_parameters);
     codegen::CGStmt code = cg.generate_code(c);
     signature = cg.getComputeFunctionSignature();
@@ -30,6 +38,7 @@ void Runner::compile(Options config) {
                       " -std=" + config.cpp_std + " " +
                       compiler_option +
                       " -fPIC " +
+					  " -I/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/include -I/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/include/torch/csrc/api/include -L/Users/maggie/.pyenv/versions/3.12.5/lib/python3.12/site-packages/torch/lib -ltorch -ltorch_cpu -lc10"+
 					  " -DACCELERATE_NEW_LAPACK -DACCELERATE_LAPACK_ILP64 -framework Accelerate " +
                       arch + " " + config.include +
                       " --shared -o " + shared_obj + " " +
@@ -56,12 +65,17 @@ void Runner::compile(Options config) {
 }
 
 void Runner::evaluate(std::map<std::string, void *> args) {
+	
+
     if (!compiled) {
         throw error::UserError("Please compile the pipeline first");
     }
 
     size_t num_args = argument_order.size();
     if (args.size() != num_args) {
+		for (auto arg : argument_order) {
+			std::cout << "expected arg " << arg << std::endl;
+		}
         throw error::UserError("Incorrect number of args passed! Expecting " + std::to_string(num_args) + " args");
     }
     // Now, fp has the FunctionSignature pointer,

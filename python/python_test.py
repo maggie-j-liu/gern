@@ -10,8 +10,8 @@ l_y = Variable.init("l_y")
 program = Composable([
     Tile(outputDS["row"], l_x)(
         Tile(outputDS["col"], l_y)(
-            MatrixAddCPU(inputDS, tmp),
-            MatrixAddCPU(tmp, outputDS)
+            MatrixAddCPU()(inputDS, tmp),
+            MatrixAddCPU()(tmp, outputDS)
         )
     )
 ])
