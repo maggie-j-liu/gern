@@ -62,13 +62,28 @@ When the `gern_function_call` node is called, it will receive the Runner (which 
 
 In this way, the custom `torch.compile` backend traces through the entire forward pass of the NN module and replaces sets of call with an equivalent call into Gern code.
 
-### Todos / Improvements
-
-- Right now, only arguments to functions are properly handled and kwargs are not. There also needs to be flexibility between the order arguments are passed in a pytorch function and the order arguments into Gern (because some Gern functions might expect a slightly different argument order).
-- Adding more annotations to the `MatrixCPU` interface. Right now, the `MatrixCPU` interface uses a custom implementation of a 2D Matrix (found in `test/library/matrix/impl/cpu-matrix.h`). An idea to make it easier to implement different operations is to directly use libtorch (C++ library for Pytorch) tensors and operations on these tensors. An example of doing this is in the `MatrixCPU4Dim` interface (also in `test/library/matrix/impl/cpu-matrix.h`).
-
 ## Examples
 
 - `python/python_test.py` contains an example of using the Python bindings to write a Gern program (in this case, it adds 2 to every element in the matrix)
 
--
+- `python/pytorch_ex.py` contains various tests and benchmarks for using the `generate_torch_compile_pipeline.py` utilities to optimize a PyTorch NN Module.
+
+## Benchmarks
+
+I also created some benchmarks with the goal of showing that fused code with Gern is faster than the unfused version.
+
+The `benchmark` directory uses Google Benchmark to run these benchmarks.
+
+Currently implemented:
+
+- In `main.cpp`, there are benchmarks for the fusion of 2 matrix multiplications (A @ B @ C), for a variety of different matrix sizes and tile sizes.
+  - Run with `./build/dev/benchmark/gern_benchmarks --benchmark_out=benchmark/results.json --benchmark_out_format=json` to write the results to `results.json`
+  - Then the results can be visualized by running `python3 plot.py`.
+
+## Todos / Improvements
+
+- Right now, only arguments to functions are properly handled and kwargs are not. There also needs to be flexibility between the order arguments are passed in a pytorch function and the order arguments into Gern (because some Gern functions might expect a slightly different argument order).
+- Adding more annotations to the `MatrixCPU` interface. Right now, the `MatrixCPU` interface uses a custom implementation of a 2D Matrix (found in `test/library/matrix/impl/cpu-matrix.h`). An idea to make it easier to implement different operations is to directly use libtorch (C++ library for Pytorch) tensors and operations on these tensors. An example of doing this is in the `MatrixCPU4Dim` interface (also in `test/library/matrix/impl/cpu-matrix.h`).
+- For benchmarks, the currently implemented benchmarks will only benchmark the C++ version of Gern
+  - More benchmarks need to be added to benchmark Gern from the python side (using python bindings and also the `generate_torch_compile_pipeline.py` torch.compile backend)
+  - However, ran into issues where the Pytorch implementation of some Pytorch functions are faster than the libtorch (C++) implementation. For example, benchmarks shpwed that `torch.add` (pytorch) was much faster than `torch::add_out` (libtorch). So this needs to be considered when benchmarking the torch.compiled code against raw Python code.
