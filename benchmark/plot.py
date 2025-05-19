@@ -18,7 +18,7 @@ time_unit_to_ms = {
 }
 
 # Load the JSON file
-with open('results.json') as f:
+with open('results2.json') as f:
     data = json.load(f)
 
 # Filter relevant entries
@@ -62,6 +62,8 @@ all_tile_labels = [f"{tile_size[0]}x{tile_size[1]}" for tile_size in tile_size_t
 
 
 for dims, runs in results.items():
+    # if dims[0][0] == 2048 and dims[0][1] == 2048:
+        # continue
 #     runs.sort(key=lambda x: x[0])
 #     tile_labels = [f"{tile_size[0]}x{tile_size[1]}" for (tile_size, _, _) in runs]
     cpu_times = [t for (_, t, _) in runs]
@@ -75,7 +77,7 @@ for dims, runs in results.items():
         plt.annotate(f"{t:.1f} ms", (tile_size_to_idx[tile_size], t), textcoords="offset points", xytext=(0, 5), ha='center', fontsize=8)
 
 # # Use string labels as x-tick labels
-plt.xticks(ticks=range(len(all_tile_labels)), labels=all_tile_labels)
+plt.xticks(ticks=range(len(all_tile_labels)), labels=all_tile_labels, rotation=90)
 
 plt.xlabel("Tile Size (HxW)")
 plt.ylabel("CPU Time (ms)")
@@ -83,5 +85,5 @@ plt.title("Median CPU Time vs Tile Size for Different Matrix Multiplications")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
-plt.savefig("benchmark_plot.png", dpi=300, bbox_inches='tight')
+plt.savefig("benchmark_plot_full.png", dpi=300, bbox_inches='tight')
 plt.show()
